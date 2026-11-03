@@ -1,10 +1,11 @@
 """TCG price crawler. Discovers Chilean TCG stores, indexes their catalogs, tracks price history.
 
 Usage:
-  python crawler.py               discover new stores + crawl all + build report.html
+  python crawler.py               discover new stores + crawl all + build site/
   python crawler.py --no-discover crawl only known stores (data.json + stores.txt)
-  python crawler.py --report      rebuild report.html from data.json, no network
-  python crawler.py --buscar "delta reign,dominio delta"   fast targeted search (comma = aliases) -> delta-reign.html
+  python crawler.py --report      rebuild site/ from data.json, no network
+  python crawler.py --serve       open site/ at http://localhost:8000 (the page fetches data/, so file:// won't work)
+  python crawler.py --buscar "delta reign,dominio delta"   fast targeted search (comma = aliases) -> site/delta-reign.html
 
 Store discovery uses the Brave Search API when BRAVE_API_KEY is set (Windows: setx BRAVE_API_KEY "tu-key",
 then open a new terminal). Without it, falls back to scraping DuckDuckGo/Bing, which gets captcha-blocked quickly.
@@ -15,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 DIR = Path(__file__).parent
-DATA, SEEDS, REPORT = DIR / "data.json", DIR / "stores.txt", DIR / "report.html"
+DATA, SEEDS, SITE = DIR / "data.json", DIR / "stores.txt", DIR / "site"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36"}
 QUERIES = [
     "tienda pokemon tcg chile", "comprar cartas pokemon chile", "booster box pokemon chile",
@@ -313,6 +314,8 @@ def merge(data, host, items, now):
 
 
 def main():
+    if "--serve" in sys.argv:
+        return serve()
     data = json.loads(DATA.read_text("utf-8")) if DATA.exists() else {"stores": {}, "products": {}}
     rejected = data.setdefault("rejected", {})  # host -> date; delete an entry to retry it
     if "--report" in sys.argv:
@@ -385,14 +388,45 @@ def search_all(data, query, now):
             print(f"  {host}: {len(items)}" + (f" (error: {err})" if err else ""))
     DATA.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
     build_report(data)
-    build_report(data, DIR / f"{slug(query.split(',')[0])}.html", query)
+    write_page(slug(query.split(",")[0]), query)
 
 
-def build_report(data, out=REPORT, query=""):
-    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    page = (DIR / "report_template.html").read_text("utf-8").replace("__DATA__", payload)
-    out.write_text(page.replace("__QUERY__", json.dumps(query, ensure_ascii=False)), "utf-8")
-    print(f"Listo: {len(data['products'])} productos en {len(data['stores'])} tiendas -> {out}")
+def write_site(data):
+    """site/data/<host>.json shards + index.json for the page to fetch. History is dropped: the page only needs the previous price."""
+    out = SITE / "data"
+    out.mkdir(parents=True, exist_ok=True)
+    for f in out.glob("*.json"):  # drop shards of stores that no longer exist
+        f.unlink()
+    shards = {h: [] for h in data["stores"]}
+    for p in data["products"].values():
+        if p["price"] > 0 and p["store"] in shards:  # the page hides price 0 anyway
+            prev = next((x[1] for x in reversed(p["history"]) if x[1] != p["price"]), 0)
+            shards[p["store"]].append({"t": p["title"], "u": p["url"], "i": p.get("image"), "p": p["price"], "v": prev,
+                                       "a": p["available"], "f": p["first_seen"], "s": p["last_seen"]})
+    dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
+    for h, rows in shards.items():
+        (out / f"{h}.json").write_text(dump(rows), "utf-8")
+    stores = {h: {k: v for k, v in s.items() if k != "lastmod"} for h, s in data["stores"].items()}
+    (out / "index.json").write_text(dump({"stores": stores}), "utf-8")
+
+
+def write_page(name, query=""):
+    page = (DIR / "report_template.html").read_text("utf-8").replace("__QUERY__", json.dumps(query, ensure_ascii=False))
+    (SITE / f"{name}.html").write_text(page, "utf-8")
+
+
+def build_report(data):
+    write_site(data)
+    write_page("index")
+    print(f"Listo: {len(data['products'])} productos en {len(data['stores'])} tiendas -> {SITE / 'index.html'}")
+
+
+def serve():
+    """The page fetches its data, so file:// won't work; serve site/ locally."""
+    import functools, http.server, webbrowser
+    print("http://localhost:8000  (Ctrl+C para salir)")
+    webbrowser.open("http://localhost:8000")
+    http.server.ThreadingHTTPServer(("", 8000), functools.partial(http.server.SimpleHTTPRequestHandler, directory=SITE)).serve_forever()
 
 
 if __name__ == "__main__":

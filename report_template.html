@@ -69,10 +69,9 @@
     <tbody id="rows"></tbody>
   </table></div>
 </main>
-<script id="data" type="application/json">__DATA__</script>
-<script>
-const DATA = JSON.parse(document.getElementById('data').textContent);
+<script type="module">
 const LIMIT = 500;
+const $ = id => document.getElementById(id);
 const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 // First match wins. Strong single signals, accessories, then sealed, then weak single signals.
@@ -91,15 +90,18 @@ const TYPES = [
 const typeOf = t => (TYPES.find(([, re]) => re.test(t)) || ['otro'])[0];
 const SEALED = new Set(['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion']);
 const LABEL = { 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', single: 'Single', accesorio: 'Accesorio', otro: '—' };
-const products = Object.values(DATA.products).map(p => {
-  const prices = p.history.map(h => h[1]);
-  const prev = [...prices].reverse().find(x => x !== p.price);
-  return { ...p, prev, delta: prev ? p.price - prev : 0, key: norm(p.title + ' ' + p.store), type: typeOf(norm(p.title)) };
-});
+const index = await (await fetch('data/index.json')).json();
+const stores = Object.entries(index.stores).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
+let done = 0, failed = 0;
+$('meta').textContent = 'Cargando...';
+const products = (await Promise.all(stores.map(async ([store]) => {
+  const rows = await fetch(`data/${store}.json`).then(r => r.json()).catch(() => { failed++; return []; });
+  $('meta').textContent = `Cargando ${++done}/${stores.length}...`;
+  return rows.map(p => ({ store, title: p.t, url: p.u, image: p.i, price: p.p, prev: p.v, available: p.a, first_seen: p.f, last_seen: p.s,
+    delta: p.v ? p.p - p.v : 0, key: norm(p.t + ' ' + store), type: typeOf(norm(p.t)) }));
+}))).flat();
 
-const $ = id => document.getElementById(id);
-const stores = Object.entries(DATA.stores).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
-$('meta').textContent = `${products.length.toLocaleString('es-CL')} productos · ${stores.length} tiendas · último crawl ${stores.map(s => s[1].last_crawl).filter(Boolean).sort().pop() || '-'}`;
+$('meta').textContent = `${products.length.toLocaleString('es-CL')} productos · ${stores.length} tiendas · último crawl ${stores.map(s => s[1].last_crawl).filter(Boolean).sort().pop() || '-'}` + (failed ? ` · ${failed} tiendas sin cargar` : '');
 for (const [h, s] of stores) {
   $('store').add(new Option(`${h} (${s.count || 0})`, h));
   const c = document.createElement('span');
