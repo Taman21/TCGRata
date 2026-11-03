@@ -191,7 +191,10 @@ def jsonld_products(page_html, page_url=None):
                 url = o.get("url") or (p.get("mainEntityOfPage") or {}).get("@id") or page_url
                 img = p.get("image")
                 img = img[0] if isinstance(img, list) and img else img
-                yield {"id": url, "title": p.get("name", ""), "url": url, "price": float(o.get("price") or o.get("lowPrice") or 0),
+                specs = o.get("priceSpecification") or []  # WooCommerce: current price next to a ListPrice (the crossed-out one)
+                specs = [specs] if isinstance(specs, dict) else specs
+                spec = next((s.get("price") for s in specs if isinstance(s, dict) and "ListPrice" not in str(s.get("priceType"))), None)
+                yield {"id": url, "title": p.get("name", ""), "url": url, "price": float(o.get("price") or o.get("lowPrice") or spec or 0),
                        "available": "InStock" in str(o.get("availability")),
                        "image": img.get("url") if isinstance(img, dict) else img,
                        "cat": cat_text(p.get("category"), (p.get("brand") or {}).get("name") if isinstance(p.get("brand"), dict) else p.get("brand"))}
@@ -336,7 +339,7 @@ ADAPTERS = {"shopify": shopify, "woocommerce": woocommerce, "tiendanube": tienda
 
 
 # ---------- crawl ----------
-def crawl_store(host, platform, lastmod, hot=None, rot=0):
+def crawl_store(host, platform, lastmod, hot=None, rot=0, store=None):
     t0 = time.time()
     for attempt in range(2):
         items, err = [], None
@@ -346,6 +349,13 @@ def crawl_store(host, platform, lastmod, hot=None, rot=0):
             err = f"{type(e).__name__}: {e}"
         if not err or items or err.startswith("URLError"):  # retry once only when nothing came back; fetch() already retried timeouts 4x, a second round is minutes wasted
             break
+    if err and not items and store is not None and platform != "sitemap" and re.match(r"HTTPError: HTTP Error 40[34]", err):
+        try:  # the API is closed to us (e.g. a security plugin on /wp-json) but the public pages may not be: read the sitemap instead
+            items = list(sitemap(host, store.setdefault("lastmod", {})))
+        except Exception:
+            items = []
+        if items:
+            err, store["platform"] = None, "sitemap"  # stays on sitemap from now on
     return host, items, err, time.time() - t0
 
 
@@ -436,7 +446,7 @@ def main():
     with ThreadPoolExecutor(8) as ex:
         for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"], stores[h].setdefault("lastmod", {}),
                                            hot.get(h, {}), stores[h].get("rot", 0))
-                                 if stores[h]["platform"] == "sitemap" else ex.submit(crawl_store, h, stores[h]["platform"], None) for h in stores]):
+                                 if stores[h]["platform"] == "sitemap" else ex.submit(crawl_store, h, stores[h]["platform"], None, store=stores[h]) for h in stores]):
             host, items, err, secs = fut.result()
             s = stores[host]
             if s["platform"] == "sitemap":
