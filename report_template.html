@@ -3,144 +3,413 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TCG Precios</title>
+<title>TCGRata - Precios de cartas TCG en Chile</title>
+<meta name="description" content="Compara el precio de cartas y productos sellados de Pokémon, Magic, Yu-Gi-Oh!, One Piece y más en las tiendas de Chile.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 56'%3E%3Ccircle cx='46' cy='30' r='20' fill='%23D9A91E'/%3E%3Cellipse cx='18' cy='31' rx='15' ry='13' fill='%23C3C7CE'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --mut:#667085; --line:#e4e7ec; --acc:#3b5bdb; --up:#c92a2a; --down:#2b8a3e; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111418; --card:#1a1e24; --fg:#e6e8eb; --mut:#98a2b3; --line:#2a3038; --acc:#748ffc; --up:#ff6b6b; --down:#51cf66; } }
+  :root {
+    --bg:#fff; --plate:#f2f3f5; --ink:#272a30; --mut:#6b7078; --line:#e6e8eb;
+    --gold:#d9a91e; --gold-d:#8a6500; --gold-bg:#fbf3dc; --drop:#2f7d4f;
+    --font:"Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
-  header { padding:16px; max-width:1200px; margin:auto; }
-  h1 { margin:0 0 4px; font-size:20px; }
-  .mut { color:var(--mut); font-size:12px; }
-  .bar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-  input, select { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); font:inherit; }
-  input[type=search] { flex:1 1 260px; }
-  label { display:flex; align-items:center; gap:6px; }
-  main { max-width:1200px; margin:auto; padding:0 16px 32px; }
-  .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
-  th { font-size:12px; color:var(--mut); font-weight:600; position:sticky; top:0; background:var(--card); }
-  td.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-  img { width:44px; height:44px; object-fit:contain; border-radius:6px; background:var(--bg); }
-  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
-  .up { color:var(--up); } .down { color:var(--down); }
-  .oos { opacity:.5; }
-  .stores { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-  .chip { font-size:12px; padding:3px 8px; border:1px solid var(--line); border-radius:99px; background:var(--card); }
+  html { scroll-padding-top:120px; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 var(--font); font-variant-numeric:tabular-nums; }
+  a { color:inherit; text-decoration:none; }
+  button, input, select { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold-d); outline-offset:2px; border-radius:6px; }
+  .wrap { max-width:1320px; margin:auto; padding:0 20px; }
+  .mut { color:var(--mut); }
+
+  /* top bar */
+  .top { position:sticky; top:0; z-index:5; background:rgba(255,255,255,.94); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .top .wrap { display:flex; align-items:center; gap:16px; height:60px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:21px; letter-spacing:-.02em; }
+  .brand svg { height:36px; width:auto; }
+  .top .stat { margin-left:auto; font-size:13px; color:var(--mut); }
+
+  /* hero: the search is the hero */
+  .hero { padding:44px 0 22px; }
+  h1 { margin:0 0 6px; font-size:clamp(28px, 4.4vw, 46px); line-height:1.05; letter-spacing:-.03em; font-weight:700; max-width:26ch; }
+  .hero p { margin:0 0 20px; color:var(--mut); max-width:60ch; }
+  .search { display:flex; max-width:760px; border:1.5px solid var(--ink); border-radius:14px; background:#fff; overflow:hidden; }
+  .search:focus-within { outline:2px solid var(--gold-d); outline-offset:2px; }
+  .search input { flex:1; border:0; padding:15px 18px; font-size:17px; background:transparent; min-width:0; }
+  .search input:focus-visible { outline:none; }
+  .search button { border:0; background:var(--ink); color:#fff; padding:0 22px; font-weight:600; cursor:pointer; }
+  .search button:hover { background:#000; }
+  .hint { margin-top:8px; font-size:13px; color:var(--mut); }
+  .hint kbd { font:inherit; border:1px solid var(--line); border-radius:4px; padding:0 5px; background:var(--plate); }
+
+  /* game tabs */
+  .tabs { position:sticky; top:60px; z-index:4; background:rgba(255,255,255,.94); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .tabs .wrap { display:flex; gap:6px; overflow-x:auto; padding-top:10px; padding-bottom:10px; scrollbar-width:thin; }
+  .tab { flex:none; border:1px solid transparent; background:transparent; padding:7px 13px; border-radius:99px; cursor:pointer; font-weight:600; white-space:nowrap; }
+  .tab small { margin-left:6px; font-weight:400; color:var(--mut); }
+  .tab:hover { background:var(--plate); }
+  .tab[aria-pressed=true] { background:var(--ink); color:#fff; }
+  .tab[aria-pressed=true] small { color:#c9ccd2; }
+
+  /* layout */
+  .layout { display:grid; grid-template-columns:230px 1fr; gap:32px; padding-top:22px; padding-bottom:60px; align-items:start; }
+  .rail { position:sticky; top:130px; display:flex; flex-direction:column; gap:20px; }
+  .rail h2 { margin:0 0 8px; font-size:13px; font-weight:700; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:14px; }
+  .seg button:hover { border-color:var(--mut); }
+  .seg button[aria-pressed=true] { border-color:var(--ink); background:var(--ink); color:#fff; }
+  .rail select, .rail input[type=number] { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:#fff; }
+  .range { display:flex; gap:8px; }
+  .check { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .check input { width:18px; height:18px; accent-color:var(--gold-d); }
+  .railbtn { display:none; }
+  .linkbtn { border:0; background:none; padding:0; color:var(--gold-d); text-decoration:underline; cursor:pointer; text-underline-offset:3px; }
+
+  .bar { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .bar .count { font-weight:600; }
+  .bar .sort { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .bar select { border:1px solid var(--line); border-radius:8px; padding:7px 10px; background:#fff; }
+
+  /* product grid */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(236px, 1fr)); gap:30px 22px; }
+  .card { display:flex; flex-direction:column; min-width:0; }
+  .plate { display:block; aspect-ratio:1/1; background:var(--plate); border-radius:14px; overflow:hidden; position:relative; }
+  .plate img { width:100%; height:100%; object-fit:contain; padding:10px; mix-blend-mode:multiply; }
+  .plate.empty::after { content:"Sin imagen"; position:absolute; inset:0; display:grid; place-items:center; color:var(--mut); font-size:13px; }
+  .badge { position:absolute; left:10px; top:10px; background:#fff; border-radius:99px; padding:3px 9px; font-size:12px; font-weight:700; color:var(--drop); }
+  .badge.out { color:var(--mut); }
+  .tags { display:flex; flex-wrap:wrap; gap:4px 10px; margin:12px 0 4px; font-size:12.5px; color:var(--mut); }
+  .title { margin:0; font-size:15px; line-height:1.3; font-weight:600; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.6em; }
+  .title:hover { text-decoration:underline; text-underline-offset:3px; }
+  .price { display:flex; align-items:center; gap:8px; margin:8px 0 6px; }
+  .coin { flex:none; width:22px; height:22px; border-radius:50%; background:var(--gold); box-shadow:inset 0 0 0 2.5px #f0cf6a, inset 0 0 0 4px var(--gold-d); }
+  .price b { font-size:24px; letter-spacing:-.02em; line-height:1; }
+  .price .from { font-size:12.5px; color:var(--mut); }
+  .price .drop { margin-left:auto; font-size:12.5px; font-weight:700; color:var(--drop); }
+  .ladder { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
+  .ladder li { border-bottom:1px solid var(--line); }
+  .ladder a { display:flex; justify-content:space-between; gap:10px; padding:7px 0 7px 10px; border-left:3px solid transparent; font-size:13.5px; }
+  .ladder a:hover { background:var(--plate); }
+  .ladder li.best a { border-left-color:var(--gold); font-weight:600; }
+  .ladder li.out a { color:var(--mut); }
+  .ladder .st { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ladder .st small { color:var(--mut); margin-left:6px; font-weight:400; }
+  .ladder .pr { flex:none; }
+  .ladder li.extra { display:none; }
+  .card.open .ladder li.extra { display:block; }
+  .more { margin-top:8px; align-self:flex-start; }
+
+  .status { padding:60px 0; color:var(--mut); max-width:52ch; }
+  .status b { color:var(--ink); display:block; font-size:18px; margin-bottom:6px; }
+  .skeleton { background:var(--plate); border-radius:14px; aspect-ratio:1/1.35; }
+  .loadmore { display:block; margin:36px auto 0; border:1.5px solid var(--ink); background:#fff; border-radius:12px; padding:11px 26px; font-weight:600; cursor:pointer; }
+  .loadmore:hover { background:var(--ink); color:#fff; }
+
+  footer { border-top:1px solid var(--line); padding:26px 0 48px; font-size:13.5px; color:var(--mut); }
+  footer summary { cursor:pointer; font-weight:600; color:var(--ink); }
+  .stores { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:4px 24px; margin:14px 0 0; padding:0; list-style:none; }
+  .stores li { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:5px 0; }
+  .stores .stale { color:#b3261e; font-weight:600; }
+
+  @media (max-width:900px) {
+    .layout { grid-template-columns:1fr; gap:14px; }
+    .rail { display:none; position:static; }
+    .rail.open { display:flex; padding:16px; border:1px solid var(--line); border-radius:14px; }
+    .railbtn { display:inline-block; border:1px solid var(--ink); background:#fff; border-radius:8px; padding:7px 12px; font-weight:600; cursor:pointer; }
+    .top .stat { display:none; }
+    .hero { padding-top:28px; }
+  }
+  @media (max-width:520px) {
+    .wrap { padding:0 14px; }
+    .grid { grid-template-columns:repeat(2, 1fr); gap:24px 12px; }
+    .price b { font-size:20px; }
+    .search button { padding:0 14px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>TCG Precios</h1>
-  <div class="mut" id="meta"></div>
-  <div class="stores" id="stores"></div>
-  <div class="bar">
-    <input type="search" id="q" placeholder="Buscar: elite trainer box perfect order, charizard..." autofocus>
-    <select id="store"><option value="">Todas las tiendas</option></select>
-    <select id="type">
-      <option value="">Todos los tipos</option>
-      <option value="sealed">Sellado (todo)</option>
-      <option value="booster box">&nbsp;&nbsp;Booster Box / Display</option>
-      <option value="etb">&nbsp;&nbsp;Elite Trainer Box</option>
-      <option value="bundle">&nbsp;&nbsp;Booster Bundle</option>
-      <option value="blister">&nbsp;&nbsp;Blister</option>
-      <option value="tin">&nbsp;&nbsp;Tin / Lata</option>
-      <option value="sobre">&nbsp;&nbsp;Sobre</option>
-      <option value="coleccion">&nbsp;&nbsp;Colección / Box / Mazo</option>
-      <option value="single">Singles</option>
-      <option value="accesorio">Accesorios</option>
-      <option value="otro">Sin clasificar</option>
-    </select>
-    <select id="sort">
-      <option value="price">Precio ↑</option>
-      <option value="-price">Precio ↓</option>
-      <option value="change">Cambio reciente</option>
-      <option value="new">Más nuevos</option>
-      <option value="title">Nombre</option>
-    </select>
-    <label><input type="checkbox" id="stock" checked> Solo con stock</label>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="TCGRata, inicio">
+      <svg viewBox="0 0 80 56" role="img" aria-label="Ratón mordiendo una moneda de oro">
+        <defs>
+          <mask id="bite"><rect width="80" height="56" fill="#fff"/><circle cx="35" cy="21" r="5.5" fill="#000"/><circle cx="33.5" cy="31" r="6" fill="#000"/><circle cx="35" cy="41" r="5.5" fill="#000"/></mask>
+        </defs>
+        <g mask="url(#bite)">
+          <circle cx="55" cy="30" r="22" fill="#d9a91e"/>
+          <circle cx="55" cy="30" r="17.5" fill="none" stroke="#8a6500" stroke-width="2"/>
+          <path d="M55 21v18M50.5 25c1-1.6 2.6-2.2 4.5-2.2 2.6 0 4.5 1 4.5 3 0 4.3-9 2.4-9 7 0 2 1.9 3.2 4.5 3.2 1.9 0 3.6-.7 4.5-2.2" fill="none" stroke="#8a6500" stroke-width="2.2" stroke-linecap="round"/>
+        </g>
+        <circle cx="8" cy="15" r="8" fill="#b9bdc4"/><circle cx="8" cy="15" r="4.6" fill="#ecd5d9"/>
+        <circle cx="23" cy="9" r="8" fill="#b9bdc4"/><circle cx="23" cy="9" r="4.6" fill="#ecd5d9"/>
+        <path d="M3 33C3 20 12 15 21 17c6 1.5 10 8 13 15-3 5-7 10-15 12C9 46 3 42 3 33z" fill="#c9cdd3"/>
+        <circle cx="18" cy="27" r="2" fill="#272a30"/>
+        <circle cx="33.5" cy="32" r="2.4" fill="#272a30"/>
+        <rect x="28.5" y="36.5" width="5.2" height="6.2" rx="1.2" fill="#fff" stroke="#8a8f98" stroke-width="1"/>
+        <path d="M31.1 36.8v5.6M24 34l-12-2.5M24 37l-12 2.5" stroke="#8a8f98" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+      <span>TCGRata</span>
+    </a>
+    <div class="stat" id="stat" aria-live="polite"></div>
   </div>
 </header>
-<main>
-  <div class="mut" id="count" style="margin-bottom:8px"></div>
-  <div class="wrap"><table>
-    <thead><tr><th></th><th>Producto</th><th>Tipo</th><th>Tienda</th><th>Stock</th><th class="num">Precio</th><th class="num">Antes</th><th class="num">Cambio</th><th>Visto</th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table></div>
-</main>
+
+<section class="hero wrap">
+  <h1>El precio más bajo de cada carta, en todas las tiendas de Chile</h1>
+  <p id="sub">Cargando tiendas…</p>
+  <form class="search" role="search" id="searchform">
+    <input type="search" id="q" placeholder="Busca una carta o producto: charizard, elite trainer box perfect order…" aria-label="Buscar" autocomplete="off" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+  <div class="hint">Separa con coma para buscar varias cosas a la vez: <i>delta reign, dominio delta</i>. Atajo: <kbd>/</kbd></div>
+</section>
+
+<nav class="tabs" aria-label="Juegos"><div class="wrap" id="tabs"></div></nav>
+
+<div class="wrap layout">
+  <aside class="rail" id="rail" aria-label="Filtros">
+    <div><h2>Tipo</h2><div class="seg" id="f-type"></div></div>
+    <div id="f-kind-box" hidden><h2>Formato</h2><select id="f-kind" aria-label="Formato"></select></div>
+    <div><h2>Idioma</h2><div class="seg" id="f-lang"></div></div>
+    <div><h2>Tienda</h2><select id="f-store" aria-label="Tienda"></select></div>
+    <div><h2>Precio (CLP)</h2><div class="range"><input type="number" id="f-min" min="0" step="1000" placeholder="Desde" aria-label="Precio mínimo"><input type="number" id="f-max" min="0" step="1000" placeholder="Hasta" aria-label="Precio máximo"></div></div>
+    <label class="check"><input type="checkbox" id="f-stock" checked> Solo con stock</label>
+    <button class="linkbtn" id="reset" type="button" style="align-self:flex-start">Limpiar filtros</button>
+  </aside>
+  <main>
+    <div class="bar">
+      <button class="railbtn" id="railbtn" type="button" aria-expanded="false" aria-controls="rail">Filtros</button>
+      <div class="count" id="count" aria-live="polite"></div>
+      <label class="sort mut">Ordenar por
+        <select id="sort">
+          <option value="stores">Más tiendas</option>
+          <option value="price">Precio más bajo</option>
+          <option value="-price">Precio más alto</option>
+          <option value="drop">Mayor baja de precio</option>
+          <option value="new">Más nuevos</option>
+          <option value="title">Nombre</option>
+        </select>
+      </label>
+    </div>
+    <div id="out"></div>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <details>
+      <summary id="storesum">Estado de las tiendas</summary>
+      <ul class="stores" id="stores"></ul>
+    </details>
+    <p>Los precios se leen directamente de cada tienda y pueden cambiar sin aviso. Confirma el valor final en la tienda antes de comprar.</p>
+  </div>
+</footer>
+
 <script type="module">
-const LIMIT = 500;
+const PAGE = 48;
 const $ = id => document.getElementById(id);
 const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
-const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-// First match wins. Strong single signals, accessories, then sealed, then weak single signals.
-const TYPES = [
-  ['single', /\b\d{1,3}\/\d{2,3}\b(?!\/)|\b[a-z]{2,4}\d{1,2}-\d{3}\b|#\d+|\((alternate art|alt art|parallel|full art)\)|\b(psa|bgs|cgc) ?\d|reverse holo|\[holo\]/],
-  ['accesorio', /sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b/],
-  ['booster box', /booster box|\bdisplay\b|caja de sobres|caja de boosters|36 sobres/],
-  ['etb', /elite trainer|\betb\b|entrenador de elite/],
-  ['bundle', /bundle/],
-  ['blister', /blister|checklane|\d-pack/],
-  ['tin', /\btin\b|\blata\b/],
-  ['sobre', /booster pack|\bsobres?\b|sleeved booster|^booster\b/],
-  ['coleccion', /collection|coleccion|\bbox\b|\bcaja\b|\bdeck\b|\bmazo\b|premium|\bupc\b|battle academy/],
-  ['single', /\b[a-z]{1,4}\d{2,3}\b|\bex\b|\bvmax\b|\bvstar\b|\bgx\b|holo|promo|foil|\bnm\b/],
-];
-const typeOf = t => (TYPES.find(([, re]) => re.test(t)) || ['otro'])[0];
-const SEALED = new Set(['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion']);
-const LABEL = { 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', single: 'Single', accesorio: 'Accesorio', otro: '—' };
-const index = await (await fetch('data/index.json')).json();
-const stores = Object.entries(index.stores).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
-let done = 0, failed = 0;
-$('meta').textContent = 'Cargando...';
-const products = (await Promise.all(stores.map(async ([store]) => {
-  const rows = await fetch(`data/${store}.json`).then(r => r.json()).catch(() => { failed++; return []; });
-  $('meta').textContent = `Cargando ${++done}/${stores.length}...`;
-  return rows.map(p => ({ store, title: p.t, url: p.u, image: p.i, price: p.p, prev: p.v, available: p.a, first_seen: p.f, last_seen: p.s,
-    delta: p.v ? p.p - p.v : 0, key: norm(p.t + ' ' + store), type: typeOf(norm(p.t)) }));
-}))).flat();
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘']/g, '');
+const LANG = { es: 'Español', en: 'Inglés', ja: 'Japonés', ko: 'Coreano', zh: 'Chino', fr: 'Francés', de: 'Alemán', it: 'Italiano', pt: 'Portugués', multi: 'Varios idiomas' };
+const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', accesorio: 'Accesorio', otro: 'Otro' };
+const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['other', 'Accesorios y otros'], ['', 'Todo']];
+const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
+  drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
+const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__ };
 
-$('meta').textContent = `${products.length.toLocaleString('es-CL')} productos · ${stores.length} tiendas · último crawl ${stores.map(s => s[1].last_crawl).filter(Boolean).sort().pop() || '-'}` + (failed ? ` · ${failed} tiendas sin cargar` : '');
-for (const [h, s] of stores) {
-  $('store').add(new Option(`${h} (${s.count || 0})`, h));
-  const c = document.createElement('span');
-  c.className = 'chip'; c.textContent = `${h} · ${s.platform}${s.error ? ' · error' : ''}`;
-  $('stores').append(c);
+let index, hosts = [];
+let state = { ...DEFAULT };
+let shown = PAGE;
+const cache = new Map();   // "game.bucket" -> Promise<group[]>
+
+// state <-> location.hash
+function readHash() {
+  const raw = decodeURIComponent(location.hash.slice(1));
+  if (raw && !raw.includes('=')) return { q: raw };
+  const out = {}; for (const [k, v] of new URLSearchParams(location.hash.slice(1))) if (k in DEFAULT) out[k] = v;
+  return out;
+}
+function writeHash() {
+  const p = new URLSearchParams();
+  for (const k in state) if (state[k] !== DEFAULT[k]) p.set(k, state[k]);
+  history.replaceState(null, '', p.size ? '#' + p : location.pathname + location.search);
 }
 
-function render() {
-  // comma = OR between phrases, space = AND between words: "delta reign, dominio delta"
-  const alts = norm($('q').value).split(',').map(x => x.split(/\s+/).filter(Boolean)).filter(x => x.length);
-  const ty = $('type').value, st = $('store').value, stock = $('stock').checked, sort = $('sort').value;
-  let list = products.filter(p => (!st || p.store === st) && (!ty || p.type === ty || (ty === 'sealed' && SEALED.has(p.type))) && (!stock || p.available) && p.price > 0 && (!alts.length || alts.some(ws => ws.every(w => p.key.includes(w)))));
-  const cmp = {
-    price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
-    change: (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
-    new: (a, b) => b.first_seen.localeCompare(a.first_seen), title: (a, b) => a.title.localeCompare(b.title),
-  }[sort];
-  list.sort(cmp);
-  $('count').textContent = `${list.length.toLocaleString('es-CL')} resultados` + (list.length > LIMIT ? ` (mostrando ${LIMIT}, refina la búsqueda)` : '');
-  const tb = $('rows'); tb.replaceChildren();
-  for (const p of list.slice(0, LIMIT)) {
-    const tr = tb.insertRow(); if (!p.available) tr.className = 'oos';
-    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; if (p.image) img.src = p.image;
-    tr.insertCell().append(img);
-    const a = document.createElement('a'); a.href = p.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = p.title;
-    tr.insertCell().append(a);
-    const tc = tr.insertCell(); tc.className = 'mut'; tc.textContent = LABEL[p.type];
-    tr.insertCell().textContent = p.store;
-    const cell = (txt, cls) => { const c = tr.insertCell(); c.className = 'num ' + (cls || ''); c.textContent = txt; };
-    const sc = tr.insertCell(); sc.className = p.available ? 'down' : 'up'; sc.textContent = p.available ? 'Sí' : 'Agotado';
-    cell(clp(p.price));
-    cell(p.prev ? clp(p.prev) : '—');
-    cell(p.delta ? (p.delta > 0 ? '▲ ' : '▼ ') + clp(Math.abs(p.delta)) + ` (${(p.delta / p.prev * 100).toFixed(0)}%)` : '', p.delta > 0 ? 'up' : p.delta < 0 ? 'down' : '');
-    const seen = tr.insertCell(); seen.className = 'mut'; seen.textContent = p.last_seen.slice(0, 10);
+const ago = iso => {
+  const m = (Date.now() - new Date(iso)) / 60000;
+  return isNaN(m) ? 'sin datos' : m < 60 ? `hace ${Math.max(1, Math.round(m))} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`;
+};
+const h = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) k.includes('-') ? e.setAttribute(k, v) : (e[k] = v);  // aria-* are attributes, not properties
+  e.append(...kids.flat().filter(k => k != null && k !== false));
+  return e;
+};
+
+// ---- data ----
+function loadShard(game, bucket) {
+  const key = `${game}.${bucket}`;
+  if (!cache.has(key)) {
+    const n = index.games[game][bucket].parts;
+    cache.set(key, Promise.all(Array.from({ length: n }, (_, i) => fetch(`data/${key}.${i}.json`).then(r => r.json()))).then(parts => parts.flat().map(g => prep(g, game))));
+  }
+  return cache.get(key);
+}
+function prep(g, game) {
+  const live = g.o.filter(o => o.a);
+  const best = (live.length ? live : g.o)[0];            // offers arrive sorted: in stock first, then cheapest
+  const variants = new Set(g.o.map(o => o.v || ''));
+  return Object.assign(g, {
+    game, best, live: live.length > 0, price: best.p, n: new Set(g.o.map(o => o.s)).size,
+    drop: best.d ? (best.d - best.p) / best.d : 0, t_new: g.f,
+    text: norm(`${g.t} ${index.labels[game] || ''} ${LANG[g.l] || ''} ${KIND[g.k] || ''} ${[...variants].join(' ')}`),
+  });
+}
+async function groupsFor(s, onProgress) {
+  const games = s.game ? [s.game] : Object.keys(index.games);
+  const buckets = s.type ? [s.type] : ['sealed', 'single', 'other'];
+  const jobs = games.flatMap(g => buckets.filter(b => index.games[g]?.[b]).map(b => [g, b]));
+  let done = 0;
+  const lists = await Promise.all(jobs.map(([g, b]) => loadShard(g, b).then(r => { onProgress?.(++done, jobs.length); return r; })));
+  return lists.flat();
+}
+
+// ---- filtering ----
+function matches(g, s, alts) {
+  if (s.lang && (s.lang === 'none' ? g.l : g.l !== s.lang)) return false;
+  if (s.kind && g.k !== s.kind) return false;
+  if (s.stock && !g.live) return false;
+  if (s.min !== '' && g.price < +s.min) return false;
+  if (s.max !== '' && g.price > +s.max) return false;
+  if (s.store !== '' && !g.o.some(o => o.s === +s.store && (!s.stock || o.a))) return false;
+  return !alts.length || alts.some(ws => ws.every(w => g.text.includes(w)));
+}
+
+let token = 0;
+async function render(resetPage = true) {
+  const mine = ++token;
+  if (resetPage) shown = PAGE;
+  writeHash(); syncControls();
+  const out = $('out');
+  const alts = norm(state.q).split(',').map(x => x.split(/\s+/).filter(Boolean)).filter(x => x.length);
+  const pending = !cache.has(`${state.game}.${state.type}`) || !state.game || !state.type;
+  if (pending) {
+    out.replaceChildren(h('div', { className: 'grid', 'aria-hidden': 'true' }, ...Array.from({ length: 8 }, () => h('div', { className: 'skeleton' }))));
+    $('count').textContent = 'Cargando…';
+  }
+  let groups;
+  try {
+    groups = await groupsFor(state, (d, t) => { if (mine === token && t > 1) $('count').textContent = `Cargando ${d} de ${t}…`; });
+  } catch (e) {
+    if (mine === token) out.replaceChildren(h('div', { className: 'status' }, h('b', {}, 'No se pudieron cargar los datos'), 'Revisa tu conexión y recarga la página.'));
+    return;
+  }
+  if (mine !== token) return;                              // a newer render superseded this one
+  const list = groups.filter(g => matches(g, state, alts)).sort(SORTS[state.sort]);
+  $('count').textContent = `${list.length.toLocaleString('es-CL')} ${list.length === 1 ? 'producto' : 'productos'}`;
+  if (!list.length) {
+    out.replaceChildren(h('div', { className: 'status' }, h('b', {}, 'Sin resultados'),
+      'Prueba con menos palabras o quita algún filtro. ', h('button', { className: 'linkbtn', type: 'button', onclick: resetFilters }, 'Limpiar filtros')));
+    return;
+  }
+  const grid = h('div', { className: 'grid' }, list.slice(0, shown).map(card));
+  out.replaceChildren(grid);
+  if (list.length > shown) {
+    out.append(h('button', { className: 'loadmore', type: 'button', onclick: () => { shown += PAGE * 2; render(false); } },
+      `Mostrar más (${Math.min(PAGE * 2, list.length - shown).toLocaleString('es-CL')} de ${(list.length - shown).toLocaleString('es-CL')} restantes)`));
   }
 }
-$('q').value = decodeURIComponent(location.hash.slice(1)) || __QUERY__;
-let t; $('q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 150); });
-for (const id of ['type', 'store', 'sort', 'stock']) $(id).addEventListener('change', render);
+
+function card(g) {
+  const url = o => o.u.startsWith('/') ? `https://${hosts[o.s]}${o.u}` : o.u;
+  const top = g.best;
+  const plate = h('a', { className: 'plate' + (g.i ? '' : ' empty'), href: url(top), target: '_blank', rel: 'noopener', tabIndex: -1, 'aria-hidden': 'true' });
+  if (g.i) plate.append(h('img', { src: g.i, alt: '', loading: 'lazy', onerror() { this.remove(); plate.classList.add('empty'); } }));
+  if (!g.live) plate.append(h('span', { className: 'badge out' }, 'Agotado'));
+  else if (g.drop >= .03) plate.append(h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`));
+
+  const rows = g.o.map((o, i) => h('li', { className: [i === 0 && o.a ? 'best' : '', o.a ? '' : 'out', i >= 3 ? 'extra' : ''].join(' ') },
+    h('a', { href: url(o), target: '_blank', rel: 'noopener' },
+      h('span', { className: 'st' }, hosts[o.s].replace(/^www\./, ''), o.v ? h('small', {}, o.v) : null),
+      h('span', { className: 'pr' }, o.a ? clp(o.p) : 'Agotado'))));
+  const el = h('article', { className: 'card' },
+    plate,
+    h('div', { className: 'tags' }, !state.game ? h('span', {}, index.labels[g.game]) : null, g.l ? h('span', {}, LANG[g.l]) : null, h('span', {}, KIND[g.k])),
+    h('h3', { className: 'title' }, h('a', { href: url(top), target: '_blank', rel: 'noopener', title: g.t }, g.t)),
+    h('div', { className: 'price' }, h('span', { className: 'coin', 'aria-hidden': 'true' }), h('b', {}, clp(g.price)),
+      g.n > 1 ? h('span', { className: 'from' }, `en ${g.n} tiendas`) : h('span', { className: 'from' }, '1 tienda')),
+    h('ol', { className: 'ladder' }, rows));
+  if (g.o.length > 3) {
+    const btn = h('button', { className: 'linkbtn more', type: 'button', 'aria-expanded': 'false' }, `Ver las ${g.o.length} ofertas`);
+    btn.onclick = () => { const open = el.classList.toggle('open'); btn.setAttribute('aria-expanded', open); btn.textContent = open ? 'Ver menos' : `Ver las ${g.o.length} ofertas`; };
+    el.append(btn);
+  }
+  return el;
+}
+
+// ---- controls ----
+// Buttons are built once and only toggled afterwards, so keyboard focus survives a click.
+function seg(box, items, key) {
+  box.dataset.key = key;
+  box.replaceChildren(...items.map(([v, label]) => h('button', { type: 'button', textContent: label, onclick: () => {
+    state[key] = v; if (key === 'type') state.kind = ''; render(); } })));
+  [...box.children].forEach((b, i) => b.dataset.v = items[i][0]);
+}
+const gameTotal = g => Object.entries(index.games[g] || {}).filter(([b]) => !state.type || b === state.type).reduce((n, [, v]) => n + v.groups, 0);
+function buildTabs() {
+  const all = g => Object.values(index.games[g]).reduce((n, v) => n + v.groups, 0);
+  const games = Object.keys(index.games).sort((a, b) => (a === 'otros') - (b === 'otros') || all(b) - all(a));
+  $('tabs').replaceChildren(...[['', 'Todos'], ...games.map(g => [g, index.labels[g] || g])].map(([v, label]) =>
+    h('button', { className: 'tab', type: 'button', onclick: () => { state.game = v; render(); } }, label, h('small'))));
+  [...$('tabs').children].forEach((b, i) => b.dataset.v = i ? games[i - 1] : '');
+  seg($('f-type'), TYPES, 'type');
+  seg($('f-lang'), [['', 'Todos'], ['es', 'Español'], ['en', 'Inglés'], ['ja', 'Japonés'], ['none', 'Sin idioma']], 'lang');
+}
+function syncControls() {
+  for (const b of $('tabs').children) {
+    const n = b.dataset.v ? gameTotal(b.dataset.v) : Object.keys(index.games).reduce((s, g) => s + gameTotal(g), 0);
+    b.hidden = !n; b.lastChild.textContent = n.toLocaleString('es-CL');
+    b.setAttribute('aria-pressed', String(b.dataset.v === state.game));
+  }
+  for (const box of [$('f-type'), $('f-lang')]) for (const b of box.children) b.setAttribute('aria-pressed', String(b.dataset.v === state[box.dataset.key]));
+  const kinds = state.type === 'sealed' ? ['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion'] : state.type === 'other' ? ['accesorio', 'otro'] : [];
+  $('f-kind-box').hidden = !kinds.length;
+  $('f-kind').replaceChildren(new Option('Todos', ''), ...kinds.map(k => new Option(KIND[k], k)));
+  $('f-kind').value = state.kind;
+  $('f-store').value = state.store; $('f-min').value = state.min; $('f-max').value = state.max;
+  $('f-stock').checked = !!state.stock; $('sort').value = state.sort; $('q').value = state.q;
+}
+function resetFilters() { state = { ...DEFAULT, q: state.q, game: state.game }; render(); }
+
+// ---- boot ----
+index = await (await fetch('data/index.json')).json();
+hosts = index.stores.map(s => s.host);
+Object.assign(state, readHash());
+buildTabs();
+$('f-store').replaceChildren(new Option('Todas las tiendas', ''), ...index.stores.map((s, i) => new Option(s.host.replace(/^www\./, ''), i)));
+const newest = index.stores.map(s => s.last_crawl).filter(Boolean).sort().pop();
+$('sub').textContent = `${index.products.toLocaleString('es-CL')} productos de ${index.stores.length} tiendas, agrupados para comparar. Última actualización ${newest ? ago(newest) : 'desconocida'}.`;
+$('stat').textContent = `${index.stores.length} tiendas · ${ago(index.generated)}`;
+$('storesum').textContent = `Estado de las ${index.stores.length} tiendas`;
+$('stores').replaceChildren(...index.stores.map(s => {
+  const old = !s.last_crawl || (Date.now() - new Date(s.last_crawl)) > 864e5;
+  return h('li', {}, h('span', {}, s.host.replace(/^www\./, '')), h('span', { className: old || s.error ? 'stale' : '' },
+    `${(s.count || 0).toLocaleString('es-CL')} · ${s.last_crawl ? ago(s.last_crawl) : 'sin datos'}${s.error ? ' · con errores' : ''}`));
+}));
+
+let t;
+$('q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { state.q = $('q').value; render(); }, 180); });
+$('searchform').addEventListener('submit', e => { e.preventDefault(); state.q = $('q').value; render(); });
+for (const [id, key] of [['f-kind', 'kind'], ['f-store', 'store'], ['sort', 'sort'], ['f-min', 'min'], ['f-max', 'max']])
+  $(id).addEventListener('change', () => { state[key] = $(id).value; render(); });
+$('f-stock').addEventListener('change', () => { state.stock = $('f-stock').checked ? '1' : ''; render(); });
+$('reset').addEventListener('click', resetFilters);
+$('railbtn').addEventListener('click', () => { const o = $('rail').classList.toggle('open'); $('railbtn').setAttribute('aria-expanded', o); });
+addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('q').focus(); } });
+addEventListener('hashchange', () => { state = { ...DEFAULT, ...readHash() }; render(); });
 render();
 </script>
 </body>

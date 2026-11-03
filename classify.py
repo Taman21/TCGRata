@@ -48,7 +48,7 @@ VARIANTS = [(v, re.compile(rx)) for v, rx in [
 # First match wins (ported from the page). Strong single signals, accessories, sealed kinds, then weak single signals.
 KINDS = [(k, re.compile(rx)) for k, rx in [
     ("single", r"\b\d{1,3}/\d{2,3}\b(?!/)|\b[a-z]{2,4}\d{1,2}-\d{3}\b|#\d+|\((?:alternate art|alt art|parallel|full art)\)|\b(?:psa|bgs|cgc) ?\d|reverse holo|\[holo\]"),
-    ("accesorio", r"sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b"),
+    ("accesorio", r"sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b|peluche|figura|funko|llavero|rompecabezas|puzzle|polera|\btaza\b|mochila|stickers?|bolso"),
     ("booster box", r"booster box|\bdisplay\b|caja de sobres|caja de boosters|36 sobres"),
     ("etb", r"elite trainer|\betb\b|entrenador de elite"),
     ("bundle", r"bundle"), ("blister", r"blister|checklane|\d-pack"), ("tin", r"\btin\b|\blata\b"),
@@ -130,8 +130,46 @@ def classify_all(products):
         if not i["game"] and i["kind"] not in ("accesorio", "otro") and products[k]["store"] in default:
             i["game"], i["src"] = default[products[k]["store"]], "store"
     for i in info.values():
+        if i["kind"] == "otro" and i["game"]:  # a bare card name (Magic: "Counterspell") in a known game, with no sealed/accessory signal
+            i["kind"] = "single"
         i["key"] = make_key(i)
     return info
+
+
+def bucket(kind):
+    return {"single": "single", "accesorio": "other", "otro": "other"}.get(kind, "sealed")
+
+
+def build_groups(products, store_id):
+    """-> {(game, bucket): [group]}. One group = one product across stores; offers cheapest (in stock) first.
+    Compact keys for the page: t title, k kind, l language, i image, f first seen, o offers.
+    Offer: s store index, p price, a in stock, u url (host-relative when possible), v variant, d previous price when it was higher."""
+    info = classify_all(products)
+    members = collections.defaultdict(list)
+    for pid, p in products.items():
+        if p["price"] > 0 and p["store"] in store_id:
+            members[info[pid]["key"]].append((p, info[pid]))
+    out = collections.defaultdict(list)
+    for ms in members.values():
+        offers, image = [], None
+        for p, i in sorted(ms, key=lambda m: (not m[0]["available"], m[0]["price"])):
+            prev = next((h[1] for h in reversed(p["history"]) if h[1] != p["price"]), 0)
+            host = "https://" + p["store"]
+            o = {"s": store_id[p["store"]], "p": round(p["price"]), "a": int(p["available"]),
+                 "u": p["url"][len(host):] if p["url"].startswith(host + "/") else p["url"]}
+            if i["variant"]:
+                o["v"] = i["variant"]
+            if prev > p["price"]:
+                o["d"] = round(prev)
+            offers.append(o)
+            image = image or p.get("image")
+        titles = collections.Counter(norm(p["title"]) for p, _ in ms)
+        title = min((p["title"] for p, _ in ms), key=lambda t: (-titles[norm(t)], t.isupper(), len(t)))
+        kind = collections.Counter(i["kind"] for _, i in ms).most_common(1)[0][0]
+        game = ms[0][1]["game"] or "otros"
+        out[(game, bucket(kind))].append({"t": title, "k": kind, "l": ms[0][1]["lang"] or "", "i": image or "",
+                                          "f": min(p["first_seen"] for p, _ in ms)[:10], "o": offers})
+    return out
 
 
 def report():

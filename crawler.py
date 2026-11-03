@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
+import classify
+
 DIR = Path(__file__).parent
 DATA, SEEDS, SITE = DIR / "data.json", DIR / "stores.txt", DIR / "site"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36"}
@@ -331,7 +333,7 @@ def main():
     rejected = data.setdefault("rejected", {})  # host -> date; delete an entry to retry it
     if "--report" in sys.argv:
         return build_report(data)
-    now = datetime.now().isoformat(timespec="minutes")
+    now = datetime.now().astimezone().isoformat(timespec="minutes")  # with offset: CI runs in UTC, the page runs in the viewer's zone
     query = sys.argv[sys.argv.index("--buscar") + 1] if "--buscar" in sys.argv else None
 
     seeds = {l.split("#")[0].strip().lower().removeprefix("https://").removeprefix("http://").strip("/")
@@ -402,23 +404,29 @@ def search_all(data, query, now):
     write_page(slug(query.split(",")[0]), query)
 
 
+CHUNK = 20000  # groups per file: keeps every file far below Cloudflare Pages' 25 MB limit
+
+
 def write_site(data):
-    """site/data/<host>.json shards + index.json for the page to fetch. History is dropped: the page only needs the previous price."""
+    """site/data/<game>.<bucket>.<n>.json (grouped products, see classify.build_groups) + index.json. History is dropped:
+    the page only needs the previous price."""
     out = SITE / "data"
     out.mkdir(parents=True, exist_ok=True)
-    for f in out.glob("*.json"):  # drop shards of stores that no longer exist
+    for f in out.glob("*.json"):
         f.unlink()
-    shards = {h: [] for h in data["stores"]}
-    for p in data["products"].values():
-        if p["price"] > 0 and p["store"] in shards:  # the page hides price 0 anyway
-            prev = next((x[1] for x in reversed(p["history"]) if x[1] != p["price"]), 0)
-            shards[p["store"]].append({"t": p["title"], "u": p["url"], "i": p.get("image"), "p": p["price"], "v": prev,
-                                       "a": p["available"], "f": p["first_seen"], "s": p["last_seen"]})
+    hosts = sorted(data["stores"])
+    shards = classify.build_groups(data["products"], {h: i for i, h in enumerate(hosts)})
     dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
-    for h, rows in shards.items():
-        (out / f"{h}.json").write_text(dump(rows), "utf-8")
-    stores = {h: {k: v for k, v in s.items() if k != "lastmod"} for h, s in data["stores"].items()}
-    (out / "index.json").write_text(dump({"stores": stores}), "utf-8")
+    games = {}
+    for (game, bucket), groups in shards.items():
+        parts = [groups[i:i + CHUNK] for i in range(0, len(groups), CHUNK)]
+        for n, part in enumerate(parts):
+            (out / f"{game}.{bucket}.{n}.json").write_text(dump(part), "utf-8")
+        games.setdefault(game, {})[bucket] = {"groups": len(groups), "parts": len(parts)}
+    stores = [{"host": h, **{k: v for k, v in data["stores"][h].items() if k in ("platform", "count", "last_crawl", "error")}} for h in hosts]
+    index = {"generated": datetime.now().astimezone().isoformat(timespec="minutes"), "stores": stores, "games": games,
+             "labels": classify.CFG["labels"], "products": len(data["products"])}
+    (out / "index.json").write_text(dump(index), "utf-8")
 
 
 def write_page(name, query=""):

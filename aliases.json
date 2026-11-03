@@ -18,6 +18,12 @@
     "magic":      {"keywords": "\\bmagic\\b|\\bmtg\\b|planeswalker|secret lair|\\bcommander\\b|\\bmythic\\b|borderless|extended art|\\btoken\\b|universes beyond|strixhaven|eternities|final fantasy|airbender|tarkir|innistrad|ravnica|eldraine|zendikar|modern horizons|lord of the rings|middle-earth|doctor who|assassin.?s creed|spider-man|duskmourn|bloomburrow|aetherdrift|kamigawa|dominaria|ikoria|theros|kaldheim|capenna|phyrexia|karlov", "tokens": ["magic", "gathering", "mtg"]},
     "pokemon":    {"keywords": "pokemon|pikachu|charizard|reverse holo|illustration rare|double rare", "tokens": ["pokemon"]}
   },
+  "labels": {
+    "pokemon": "Pokémon", "magic": "Magic: The Gathering", "yugioh": "Yu-Gi-Oh!", "onepiece": "One Piece", "lorcana": "Lorcana",
+    "dragonball": "Dragon Ball", "digimon": "Digimon", "mitos": "Mitos y Leyendas", "riftbound": "Riftbound", "gundam": "Gundam",
+    "starwars": "Star Wars: Unlimited", "cardfight": "Vanguard", "weiss": "Weiss Schwarz", "naruto": "Naruto", "unionarena": "Union Arena",
+    "fab": "Flesh and Blood", "otros": "Otros"
+  },
   "phrases": {
     "elite trainer box": "etb",
     "caja de entrenador de elite": "etb",
