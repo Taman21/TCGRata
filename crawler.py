@@ -344,7 +344,7 @@ def crawl_store(host, platform, lastmod, hot=None, rot=0):
             items.extend(sitemap(host, lastmod, hot, rot) if platform == "sitemap" else ADAPTERS[platform](host))
         except Exception as e:  # keep what we got; products not seen this run just keep their old last_seen
             err = f"{type(e).__name__}: {e}"
-        if not err or items:  # retry once only when nothing came back at all
+        if not err or items or err.startswith("URLError"):  # retry once only when nothing came back; fetch() already retried timeouts 4x, a second round is minutes wasted
             break
     return host, items, err, time.time() - t0
 
@@ -422,6 +422,8 @@ def main():
     for h, s in data["stores"].items():  # commenting a store out of stores.txt retires it: not crawled, not shown
         s["disabled"] = bool(seeds) and h not in seeds
     stores = {h: s for h, s in data["stores"].items() if not s["disabled"]}
+    if len(stores) < len(data["stores"]):  # loud on purpose: a store missing from stores.txt silently vanishes from the site
+        print("Tiendas fuera de stores.txt (retiradas, no se crawlean ni se muestran): " + ", ".join(h for h, s in data["stores"].items() if s["disabled"]))
     if query:
         return search_all(data, query, now)
     print(f"Crawleando {len(stores)} tiendas...")

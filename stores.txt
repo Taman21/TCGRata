@@ -73,6 +73,10 @@ area52.cl  # auto 2026-10-06
 cartonesguayacan.cl  # auto 2026-10-06
 safarizone.cl  # auto 2026-10-06
 progaming.cl  # auto 2026-10-06
+# Restauradas 2026-11-03: estaban en los datos pero no en esta lista y el retiro automatico las saco del sitio
+www.afkstore.cl
+arcadiacollects.cl
+www.elpanteon.cl
 # mundosaidok.cl  (404 desde GitHub Actions el 2026-11-03: tienda caida o plataforma cambiada)
 tcgcoleccionistas.cl  # auto 2026-10-06
 www.tcgplanet.cl  # auto 2026-10-06
