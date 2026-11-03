@@ -11,7 +11,7 @@ Usage:
 Store discovery uses the Brave Search API when BRAVE_API_KEY is set (Windows: setx BRAVE_API_KEY "tu-key",
 then open a new terminal). Without it, falls back to scraping DuckDuckGo/Bing, which gets captcha-blocked quickly.
 """
-import base64, html, json, os, re, sys, unicodedata, time, urllib.error, urllib.parse, urllib.request
+import base64, html, json, os, re, sys, unicodedata, time, urllib.error, urllib.parse, urllib.request, zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -249,12 +249,27 @@ def page_products(url):
         return []
 
 
-def sitemap(host, seen):
+ROTATE = 4  # sitemaps without lastmod: the non-Pokemon URLs already known are refreshed 1/ROTATE per crawl (each one every ~24 h at a 6 h cron)
+
+
+def sitemap(host, seen, hot=None, rot=0):
     """Fallback for any platform (Jumpseller, custom...): visit sitemap URLs, keep pages with Product JSON-LD.
     `seen` {url: lastmod} is updated in place; URLs whose lastmod is unchanged since the last crawl are skipped.
+    Without a lastmod nothing can be skipped by date, so: new URLs and Pokemon ones (`hot` {url: bool} from earlier crawls) are
+    always visited and the rest rotate by `rot`. hot=None visits everything.
     ponytail: trusts lastmod; a store that doesn't bump it on price/stock edits stays stale, add a periodic full pass if seen."""
     entries = sitemap_entries(host)
-    todo = [u for u, m in entries.items() if not m or seen.get(u) != m]
+    for u in [u for u, m in seen.items() if not m]:  # older runs stored "" for every lastmod-less URL
+        del seen[u]
+
+    def due(u, m):
+        if m:
+            return seen.get(u) != m
+        return hot is None or u not in hot or hot[u] or zlib.crc32(u.encode()) % ROTATE == rot % ROTATE
+
+    todo = [u for u, m in entries.items() if due(u, m)]
+    if len(todo) < len(entries):
+        print(f"    {host}: {len(todo)} de {len(entries)} URLs hoy")
 
     def visit(u):
         try:
@@ -265,7 +280,8 @@ def sitemap(host, seen):
     with ThreadPoolExecutor(8) as ex:
         for u, items in ex.map(visit, todo):
             if items is not None:
-                seen[u] = entries[u]
+                if entries[u]:
+                    seen[u] = entries[u]
                 yield from items
 
 
@@ -320,12 +336,12 @@ ADAPTERS = {"shopify": shopify, "woocommerce": woocommerce, "tiendanube": tienda
 
 
 # ---------- crawl ----------
-def crawl_store(host, platform, lastmod):
+def crawl_store(host, platform, lastmod, hot=None, rot=0):
     t0 = time.time()
     for attempt in range(2):
         items, err = [], None
         try:
-            items.extend(sitemap(host, lastmod) if platform == "sitemap" else ADAPTERS[platform](host))
+            items.extend(sitemap(host, lastmod, hot, rot) if platform == "sitemap" else ADAPTERS[platform](host))
         except Exception as e:  # keep what we got; products not seen this run just keep their old last_seen
             err = f"{type(e).__name__}: {e}"
         if not err or items:  # retry once only when nothing came back at all
@@ -411,11 +427,18 @@ def main():
     print(f"Crawleando {len(stores)} tiendas...")
     known = Counter(p["store"] for p in data["products"].values())
     t0 = last_save = time.time()
+    hot = {}  # per sitemap store: {product id (its URL): looks like Pokemon}, from what earlier crawls found
+    for k, p in data["products"].items():
+        if stores.get(p["store"], {}).get("platform") == "sitemap":
+            hot.setdefault(p["store"], {})[k[len(p["store"]) + 1:]] = classify.is_pokemon_like(p["title"], p.get("cat"))
     with ThreadPoolExecutor(8) as ex:
-        for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"], stores[h].setdefault("lastmod", {})
-                                           if stores[h]["platform"] == "sitemap" else None) for h in stores]):
+        for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"], stores[h].setdefault("lastmod", {}),
+                                           hot.get(h, {}), stores[h].get("rot", 0))
+                                 if stores[h]["platform"] == "sitemap" else ex.submit(crawl_store, h, stores[h]["platform"], None) for h in stores]):
             host, items, err, secs = fut.result()
             s = stores[host]
+            if s["platform"] == "sitemap":
+                s["rot"] = s.get("rot", 0) + 1
             if not err and not items and s["platform"] != "sitemap" and known[host]:  # sitemap stores legitimately return 0 when nothing changed
                 err = f"0 productos (antes {known[host]})"  # an empty answer from a store that had stock is a block or an outage
             s.update(last_crawl=now, count=len(items), error=err, secs=round(secs, 1))

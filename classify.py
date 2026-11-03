@@ -103,6 +103,13 @@ def classify_one(title, cat=""):
             "code": code and code["id"], "how": code and code["how"], "tokens": tokens}
 
 
+def is_pokemon_like(title, cat=""):
+    """Cheap per-product guess used to prioritize crawling: Pokemon by keyword/category, or an unlabeled 'NNN/NNN' numbered card
+    (mostly Pokemon). Superset on purpose: a wrong 'yes' only costs one extra page fetch."""
+    i = classify_one(title, cat or "")
+    return i["game"] == "pokemon" or (i["game"] is None and i["how"] == "num")
+
+
 def make_key(i):
     g, l = i["game"] or "?", i["lang"] or "?"
     if i["code"]:  # NNN/NNN repeats across sets: add the card's first word as a guard
