@@ -45,3 +45,8 @@ jobs:
         run: |
           npx --yes wrangler@3 pages project create tcgrata --production-branch main || true
           npx --yes wrangler@3 pages deploy site --project-name tcgrata --branch main
+
+      # Va al final y siempre: si >10% de las tiendas llevan 24 h sin crawl limpio, el run queda rojo y GitHub avisa por correo
+      - name: Store health
+        if: always()
+        run: python crawler.py --health

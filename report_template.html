@@ -95,6 +95,8 @@
   .ladder a:hover { background:var(--plate); }
   .ladder li.best a { border-left-color:var(--gold); font-weight:600; }
   .ladder li.out a { color:var(--mut); }
+  .ladder li.old .pr { color:var(--mut); font-style:italic; }
+  .ladder .st small.warn { color:#b3261e; }
   .ladder .st { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ladder .st small { color:var(--mut); margin-left:6px; font-weight:400; }
   .ladder .pr { flex:none; }
@@ -220,7 +222,8 @@ const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) 
   drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
 const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__ };
 
-let index, hosts = [];
+const STALE_MS = 24 * 36e5;
+let index, hosts = [], staleStore = [], fresh = s => s.last_ok || s.last_crawl;   // last_ok = last crawl without errors
 let state = { ...DEFAULT };
 let shown = PAGE;
 const cache = new Map();   // "game.bucket" -> Promise<group[]>
@@ -260,7 +263,8 @@ function loadShard(game, bucket) {
 }
 function prep(g, game) {
   const live = g.o.filter(o => o.a);
-  const best = (live.length ? live : g.o)[0];            // offers arrive sorted: in stock first, then cheapest
+  // Offers arrive sorted: in stock first, then cheapest. A price from a store we couldn't refresh lately never headlines a group if a fresh one exists.
+  const best = live.find(o => !staleStore[o.s]) || live[0] || g.o[0];
   const variants = new Set(g.o.map(o => o.v || ''));
   return Object.assign(g, {
     game, best, live: live.length > 0, price: best.p, n: new Set(g.o.map(o => o.s)).size,
@@ -331,9 +335,10 @@ function card(g) {
   if (!g.live) plate.append(h('span', { className: 'badge out' }, 'Agotado'));
   else if (g.drop >= .03) plate.append(h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`));
 
-  const rows = g.o.map((o, i) => h('li', { className: [i === 0 && o.a ? 'best' : '', o.a ? '' : 'out', i >= 3 ? 'extra' : ''].join(' ') },
-    h('a', { href: url(o), target: '_blank', rel: 'noopener' },
-      h('span', { className: 'st' }, hosts[o.s].replace(/^www\./, ''), o.v ? h('small', {}, o.v) : null),
+  const rows = g.o.map((o, i) => h('li', { className: [o === top && o.a ? 'best' : '', o.a ? '' : 'out', staleStore[o.s] ? 'old' : '', i >= 3 ? 'extra' : ''].join(' ') },
+    h('a', { href: url(o), target: '_blank', rel: 'noopener', title: staleStore[o.s] ? 'No pudimos actualizar esta tienda hace tiempo: el precio puede haber cambiado' : '' },
+      h('span', { className: 'st' }, hosts[o.s].replace(/^www\./, ''), o.v ? h('small', {}, o.v) : null,
+        staleStore[o.s] ? h('small', { className: 'warn' }, ago(fresh(index.stores[o.s]))) : null),
       h('span', { className: 'pr' }, o.a ? clp(o.p) : 'Agotado'))));
   const el = h('article', { className: 'card' },
     plate,
@@ -390,15 +395,16 @@ hosts = index.stores.map(s => s.host);
 Object.assign(state, readHash());
 buildTabs();
 $('f-store').replaceChildren(new Option('Todas las tiendas', ''), ...index.stores.map((s, i) => new Option(s.host.replace(/^www\./, ''), i)));
-const newest = index.stores.map(s => s.last_crawl).filter(Boolean).sort().pop();
-$('sub').textContent = `${index.products.toLocaleString('es-CL')} productos de ${index.stores.length} tiendas, agrupados para comparar. Última actualización ${newest ? ago(newest) : 'desconocida'}.`;
+staleStore = index.stores.map(s => !fresh(s) || Date.now() - new Date(fresh(s)) > STALE_MS);
+const nStale = staleStore.filter(Boolean).length;
+const newest = index.stores.map(fresh).filter(Boolean).sort().pop();
+$('sub').textContent = `${index.products.toLocaleString('es-CL')} productos de ${index.stores.length} tiendas, agrupados para comparar. Última actualización ${newest ? ago(newest) : 'desconocida'}.`
+  + (nStale ? ` ${nStale} ${nStale === 1 ? 'tienda tiene' : 'tiendas tienen'} precios de hace más de 24 h y se marcan como desactualizados.` : '');
 $('stat').textContent = `${index.stores.length} tiendas · ${ago(index.generated)}`;
 $('storesum').textContent = `Estado de las ${index.stores.length} tiendas`;
-$('stores').replaceChildren(...index.stores.map(s => {
-  const old = !s.last_crawl || (Date.now() - new Date(s.last_crawl)) > 864e5;
-  return h('li', {}, h('span', {}, s.host.replace(/^www\./, '')), h('span', { className: old || s.error ? 'stale' : '' },
-    `${(s.count || 0).toLocaleString('es-CL')} · ${s.last_crawl ? ago(s.last_crawl) : 'sin datos'}${s.error ? ' · con errores' : ''}`));
-}));
+$('stores').replaceChildren(...index.stores.map((s, i) => h('li', {}, h('span', {}, s.host.replace(/^www\./, '')),
+  h('span', { className: staleStore[i] || s.error ? 'stale' : '' },
+    `${(s.count || 0).toLocaleString('es-CL')} · ${fresh(s) ? ago(fresh(s)) : 'sin datos'}${s.error ? ' · último intento con errores' : ''}`))));
 
 let t;
 $('q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { state.q = $('q').value; render(); }, 180); });

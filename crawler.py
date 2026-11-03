@@ -4,6 +4,7 @@ Usage:
   python crawler.py               discover new stores + crawl all + build site/
   python crawler.py --no-discover crawl only known stores (data.json + stores.txt)
   python crawler.py --report      rebuild site/ from data.json, no network
+  python crawler.py --health      list stores without a clean crawl in the last 24 h (exit 1 if >10% are stale)
   python crawler.py --serve       open site/ at http://localhost:8000 (the page fetches data/, so file:// won't work)
   python crawler.py --buscar "delta reign,dominio delta"   fast targeted search (comma = aliases) -> site/delta-reign.html
 
@@ -11,6 +12,7 @@ Store discovery uses the Brave Search API when BRAVE_API_KEY is set (Windows: se
 then open a new terminal). Without it, falls back to scraping DuckDuckGo/Bing, which gets captcha-blocked quickly.
 """
 import base64, html, json, os, re, sys, unicodedata, time, urllib.error, urllib.parse, urllib.request
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -304,12 +306,16 @@ ADAPTERS = {"shopify": shopify, "woocommerce": woocommerce, "tiendanube": tienda
 
 # ---------- crawl ----------
 def crawl_store(host, platform, lastmod):
-    items, t0 = [], time.time()
-    try:
-        items.extend(sitemap(host, lastmod) if platform == "sitemap" else ADAPTERS[platform](host))
-        return host, items, None, time.time() - t0
-    except Exception as e:  # keep what we got; products not seen this run just keep their old last_seen
-        return host, items, f"{type(e).__name__}: {e}", time.time() - t0
+    t0 = time.time()
+    for attempt in range(2):
+        items, err = [], None
+        try:
+            items.extend(sitemap(host, lastmod) if platform == "sitemap" else ADAPTERS[platform](host))
+        except Exception as e:  # keep what we got; products not seen this run just keep their old last_seen
+            err = f"{type(e).__name__}: {e}"
+        if not err or items:  # retry once only when nothing came back at all
+            break
+    return host, items, err, time.time() - t0
 
 
 def merge(data, host, items, now):
@@ -326,6 +332,27 @@ def merge(data, host, items, now):
             p["history"].append([now, it["price"], it["available"]])
 
 
+def health(data, max_age_h=24):
+    """Stores whose last clean crawl is older than max_age_h. Exits 1 when more than 10% (min 5) are stale: that points to an
+    outage or a block, not one broken shop. Single stores show in the log, the run annotations and the site footer."""
+    now = datetime.now().astimezone()
+    age = lambda s: (now - datetime.fromisoformat(s["last_ok"]).astimezone()).total_seconds() / 3600 if s.get("last_ok") else None
+    live = {h: s for h, s in data["stores"].items() if not s.get("disabled")}
+    stale = {h: s for h, s in sorted(live.items()) if age(s) is None or age(s) > max_age_h}
+    lines = [f"{h}: " + (f"sin datos frescos hace {age(s):.0f} h" if age(s) is not None else "sin ningun crawl exitoso")
+             + f", {s.get('fails', 0)} fallos seguidos, ultimo error: {s.get('error')}" for h, s in stale.items()]
+    print(f"{len(stale)} de {len(live)} tiendas sin datos de menos de {max_age_h} h")
+    for l in lines:
+        print("  " + l)
+    if os.environ.get("GITHUB_ACTIONS"):
+        for l in lines:
+            print(f"::warning::{l}")
+        if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+            with open(summary, "a", encoding="utf-8") as f:
+                f.write(f"### {len(stale)} de {len(live)} tiendas sin datos frescos (>{max_age_h} h)\n" + "".join(f"- {l}\n" for l in lines))
+    sys.exit(1 if len(stale) > max(5, len(live) // 10) else 0)
+
+
 def main():
     if "--serve" in sys.argv:
         return serve()
@@ -333,6 +360,8 @@ def main():
     rejected = data.setdefault("rejected", {})  # host -> date; delete an entry to retry it
     if "--report" in sys.argv:
         return build_report(data)
+    if "--health" in sys.argv:
+        return health(data)
     now = datetime.now().astimezone().isoformat(timespec="minutes")  # with offset: CI runs in UTC, the page runs in the viewer's zone
     query = sys.argv[sys.argv.index("--buscar") + 1] if "--buscar" in sys.argv else None
 
@@ -359,16 +388,26 @@ def main():
                 why = f"{tcg}/{len(titles)} TCG en muestra" if platform else "plataforma no soportada"
                 print(f"  - {host} ({why})")
 
-    stores = data["stores"]
+    for h, s in data["stores"].items():  # commenting a store out of stores.txt retires it: not crawled, not shown
+        s["disabled"] = bool(seeds) and h not in seeds
+    stores = {h: s for h, s in data["stores"].items() if not s["disabled"]}
     if query:
         return search_all(data, query, now)
     print(f"Crawleando {len(stores)} tiendas...")
+    known = Counter(p["store"] for p in data["products"].values())
     t0 = last_save = time.time()
     with ThreadPoolExecutor(8) as ex:
         for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"], stores[h].setdefault("lastmod", {})
                                            if stores[h]["platform"] == "sitemap" else None) for h in stores]):
             host, items, err, secs = fut.result()
-            stores[host].update(last_crawl=now, count=len(items), error=err, secs=round(secs, 1))
+            s = stores[host]
+            if not err and not items and s["platform"] != "sitemap" and known[host]:  # sitemap stores legitimately return 0 when nothing changed
+                err = f"0 productos (antes {known[host]})"  # an empty answer from a store that had stock is a block or an outage
+            s.update(last_crawl=now, count=len(items), error=err, secs=round(secs, 1))
+            if err:
+                s["fails"] = s.get("fails", 0) + 1
+            else:
+                s.update(last_ok=now, fails=0)  # last_ok is what the page treats as "how fresh are this store's prices"
             merge(data, host, items, now)
             print(f"  {host}: {len(items)} productos en {secs:.0f}s" + (f" (error: {err})" if err else ""))
             if time.time() - last_save > 60:  # dumping ~150 MB per store dominated runtime; a killed run loses <=1 min
@@ -414,8 +453,9 @@ def write_site(data):
     out.mkdir(parents=True, exist_ok=True)
     for f in out.glob("*.json"):
         f.unlink()
-    hosts = sorted(data["stores"])
+    hosts = sorted(h for h, s in data["stores"].items() if not s.get("disabled"))
     shards = classify.build_groups(data["products"], {h: i for i, h in enumerate(hosts)})
+    counts = Counter(p["store"] for p in data["products"].values())  # s["count"] is only what the last run fetched (0 for an unchanged sitemap)
     dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
     games = {}
     for (game, bucket), groups in shards.items():
@@ -423,7 +463,8 @@ def write_site(data):
         for n, part in enumerate(parts):
             (out / f"{game}.{bucket}.{n}.json").write_text(dump(part), "utf-8")
         games.setdefault(game, {})[bucket] = {"groups": len(groups), "parts": len(parts)}
-    stores = [{"host": h, **{k: v for k, v in data["stores"][h].items() if k in ("platform", "count", "last_crawl", "error")}} for h in hosts]
+    stores = [{"host": h, **{k: v for k, v in data["stores"][h].items() if k in ("platform", "last_crawl", "last_ok", "fails", "error")},
+               "count": counts[h]} for h in hosts]
     index = {"generated": datetime.now().astimezone().isoformat(timespec="minutes"), "stores": stores, "games": games,
              "labels": classify.CFG["labels"], "products": len(data["products"])}
     (out / "index.json").write_text(dump(index), "utf-8")

@@ -65,3 +65,13 @@ Notas:
 - GitHub Pages no sirve: en cuenta Free no publica repos privados. Por eso Cloudflare Pages.
 - El sitio en `*.pages.dev` es público aunque el repo sea privado. Para restringirlo: Cloudflare Access (gratis hasta 50 usuarios).
 - Presupuesto: 2000 min/mes / (4 corridas/día * 30) = ~16 min por corrida. Si un ciclo tarda más, subir el intervalo en el cron.
+
+## Estado (2026-11-03)
+- Fase 0 medir: hecha. Fase 1 velocidad: hecha. Fase 2 datos + sitio: hecha (por juego/tipo, productos agrupados; ver `classify.py` y `aliases.json`).
+- Fase 3 automatización: workflow lanzado en GitHub (repo público; la cuenta estuvo bloqueada por facturación). Falta confirmar guardado de estado y deploy a Cloudflare.
+- Fase 4 confiabilidad: hecha.
+  - Por tienda: `last_ok` (último crawl sin errores) y `fails` (fallos seguidos). Reintento si no llegó nada. Una tienda que antes tenía stock y responde 0 productos cuenta como fallo.
+  - Sacar una tienda de `stores.txt` (comentarla) la retira: no se crawlea ni se muestra.
+  - `python crawler.py --health` lista tiendas sin crawl limpio en 24 h; el workflow lo corre al final y queda rojo (correo de GitHub) si >10% están así.
+  - La página marca como desactualizado el precio de una tienda con >24 h sin crawl limpio y no lo elige como "el más barato" si hay otro fresco.
+- Pendiente: extras de UI (gráfico de historial de precio, favoritos, sección "Bajó de precio", insignia de preventa), subir cobertura de juego con `cat`, Fase 5 solo si la medición lo pide.
