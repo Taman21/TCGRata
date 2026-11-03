@@ -1,0 +1,5 @@
+__pycache__/
+# data.json y los reportes generados pesan ~147 MB; GitHub rechaza archivos > 100 MB
+data.json
+report.html
+delta-reign.html

@@ -1,0 +1,81 @@
+# Tiendas a incluir siempre (un dominio por línea). El descubrimiento automático agrega más.
+tcgprime.cl
+www.charizstore.cl
+deckswap.cl
+pokestop.cl
+www.tcgfamily.cl
+www.ruta12club.cl
+www.tcgacademy.cl
+holozone.cl
+meepleland.cl
+tcgmatch.cl
+# Encontradas buscando "preventa delta reign" (2026-10-02)
+sidedeck.cl
+www.gameofmagictienda.cl
+laira.cl
+www.santogames.cl
+www.theway.cl
+piedrabruja.cl
+collectorcenter.cl
+www.geekers.cl
+www.rtgamerstore.cl
+dyskeu.cl
+www.larucadegalvarino.cl
+www.bluecard.cl
+dexdeckstore.cl  # auto 2026-10-02
+# Lista "tiendas tcg.txt" (2026-10-03)
+www.tiendalacomarca.cl
+www.top8.cl
+elreinodelosduelos.cl
+geekz.cl
+www.thirdimpact.cl
+drawn.cl
+tienditamonostcg.cl
+# www.pokemillon.com  (española, no sirve)
+www.ozenparadisetcg.cl
+terratcg.cl
+ansaldo.cl
+mundoimaginario.cl
+# www.torneostcg.cl  (buscador de torneos, no tienda)
+www.playset.cl
+www.huntercardtcg.com
+www.oasisgames.cl
+www.gorilatcg.cl
+www.arkanatcg.cl
+poisonandpotion.com
+www.juegomania.cl
+rockettcg.cl
+todopoke.cl
+metagame.cl
+tcglifestore.cl
+konohastore.cl
+www.libroaventura.cl
+viciotcg.cl
+tiendareymago.cl
+www.elpatiogeek.cl
+www.vudugaming.cl
+www.magic-chile.cl  # auto 2026-10-06
+www.littletoys.cl  # auto 2026-10-06
+www.peluchespokemon.cl  # auto 2026-10-06
+www.updown.cl  # auto 2026-10-06
+themulligan.cl  # auto 2026-10-06
+www.deckscards.cl  # auto 2026-10-06
+filecity.cl  # auto 2026-10-06
+elarcanista.cl  # auto 2026-10-06
+www.playtcg.cl  # auto 2026-10-06
+addictionmodel.cl  # auto 2026-10-06
+intercards.cl  # auto 2026-10-06
+singles.collectorcenter.cl  # auto 2026-10-06
+www.pandorastore.cl  # auto 2026-10-06
+metagaming.cl  # auto 2026-10-06
+www.pokestoretcg.cl  # auto 2026-10-06
+area52.cl  # auto 2026-10-06
+cartonesguayacan.cl  # auto 2026-10-06
+safarizone.cl  # auto 2026-10-06
+progaming.cl  # auto 2026-10-06
+mundosaidok.cl  # auto 2026-10-06
+tcgcoleccionistas.cl  # auto 2026-10-06
+www.tcgplanet.cl  # auto 2026-10-06
+www.trainerscollector.cl  # auto 2026-10-06
+gameofmagicsingles.cl  # auto 2026-10-08
+pokedals.cl  # auto 2026-10-08

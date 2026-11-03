@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCG Precios</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --mut:#667085; --line:#e4e7ec; --acc:#3b5bdb; --up:#c92a2a; --down:#2b8a3e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111418; --card:#1a1e24; --fg:#e6e8eb; --mut:#98a2b3; --line:#2a3038; --acc:#748ffc; --up:#ff6b6b; --down:#51cf66; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  header { padding:16px; max-width:1200px; margin:auto; }
+  h1 { margin:0 0 4px; font-size:20px; }
+  .mut { color:var(--mut); font-size:12px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  input, select { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); font:inherit; }
+  input[type=search] { flex:1 1 260px; }
+  label { display:flex; align-items:center; gap:6px; }
+  main { max-width:1200px; margin:auto; padding:0 16px 32px; }
+  .wrap { overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  th { font-size:12px; color:var(--mut); font-weight:600; position:sticky; top:0; background:var(--card); }
+  td.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  img { width:44px; height:44px; object-fit:contain; border-radius:6px; background:var(--bg); }
+  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+  .up { color:var(--up); } .down { color:var(--down); }
+  .oos { opacity:.5; }
+  .stores { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chip { font-size:12px; padding:3px 8px; border:1px solid var(--line); border-radius:99px; background:var(--card); }
+</style>
+</head>
+<body>
+<header>
+  <h1>TCG Precios</h1>
+  <div class="mut" id="meta"></div>
+  <div class="stores" id="stores"></div>
+  <div class="bar">
+    <input type="search" id="q" placeholder="Buscar: elite trainer box perfect order, charizard..." autofocus>
+    <select id="store"><option value="">Todas las tiendas</option></select>
+    <select id="type">
+      <option value="">Todos los tipos</option>
+      <option value="sealed">Sellado (todo)</option>
+      <option value="booster box">&nbsp;&nbsp;Booster Box / Display</option>
+      <option value="etb">&nbsp;&nbsp;Elite Trainer Box</option>
+      <option value="bundle">&nbsp;&nbsp;Booster Bundle</option>
+      <option value="blister">&nbsp;&nbsp;Blister</option>
+      <option value="tin">&nbsp;&nbsp;Tin / Lata</option>
+      <option value="sobre">&nbsp;&nbsp;Sobre</option>
+      <option value="coleccion">&nbsp;&nbsp;Colección / Box / Mazo</option>
+      <option value="single">Singles</option>
+      <option value="accesorio">Accesorios</option>
+      <option value="otro">Sin clasificar</option>
+    </select>
+    <select id="sort">
+      <option value="price">Precio ↑</option>
+      <option value="-price">Precio ↓</option>
+      <option value="change">Cambio reciente</option>
+      <option value="new">Más nuevos</option>
+      <option value="title">Nombre</option>
+    </select>
+    <label><input type="checkbox" id="stock" checked> Solo con stock</label>
+  </div>
+</header>
+<main>
+  <div class="mut" id="count" style="margin-bottom:8px"></div>
+  <div class="wrap"><table>
+    <thead><tr><th></th><th>Producto</th><th>Tipo</th><th>Tienda</th><th>Stock</th><th class="num">Precio</th><th class="num">Antes</th><th class="num">Cambio</th><th>Visto</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</main>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const LIMIT = 500;
+const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// First match wins. Strong single signals, accessories, then sealed, then weak single signals.
+const TYPES = [
+  ['single', /\b\d{1,3}\/\d{2,3}\b(?!\/)|\b[a-z]{2,4}\d{1,2}-\d{3}\b|#\d+|\((alternate art|alt art|parallel|full art)\)|\b(psa|bgs|cgc) ?\d|reverse holo|\[holo\]/],
+  ['accesorio', /sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b/],
+  ['booster box', /booster box|\bdisplay\b|caja de sobres|caja de boosters|36 sobres/],
+  ['etb', /elite trainer|\betb\b|entrenador de elite/],
+  ['bundle', /bundle/],
+  ['blister', /blister|checklane|\d-pack/],
+  ['tin', /\btin\b|\blata\b/],
+  ['sobre', /booster pack|\bsobres?\b|sleeved booster|^booster\b/],
+  ['coleccion', /collection|coleccion|\bbox\b|\bcaja\b|\bdeck\b|\bmazo\b|premium|\bupc\b|battle academy/],
+  ['single', /\b[a-z]{1,4}\d{2,3}\b|\bex\b|\bvmax\b|\bvstar\b|\bgx\b|holo|promo|foil|\bnm\b/],
+];
+const typeOf = t => (TYPES.find(([, re]) => re.test(t)) || ['otro'])[0];
+const SEALED = new Set(['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion']);
+const LABEL = { 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', single: 'Single', accesorio: 'Accesorio', otro: '—' };
+const products = Object.values(DATA.products).map(p => {
+  const prices = p.history.map(h => h[1]);
+  const prev = [...prices].reverse().find(x => x !== p.price);
+  return { ...p, prev, delta: prev ? p.price - prev : 0, key: norm(p.title + ' ' + p.store), type: typeOf(norm(p.title)) };
+});
+
+const $ = id => document.getElementById(id);
+const stores = Object.entries(DATA.stores).sort((a, b) => (b[1].count || 0) - (a[1].count || 0));
+$('meta').textContent = `${products.length.toLocaleString('es-CL')} productos · ${stores.length} tiendas · último crawl ${stores.map(s => s[1].last_crawl).filter(Boolean).sort().pop() || '-'}`;
+for (const [h, s] of stores) {
+  $('store').add(new Option(`${h} (${s.count || 0})`, h));
+  const c = document.createElement('span');
+  c.className = 'chip'; c.textContent = `${h} · ${s.platform}${s.error ? ' · error' : ''}`;
+  $('stores').append(c);
+}
+
+function render() {
+  // comma = OR between phrases, space = AND between words: "delta reign, dominio delta"
+  const alts = norm($('q').value).split(',').map(x => x.split(/\s+/).filter(Boolean)).filter(x => x.length);
+  const ty = $('type').value, st = $('store').value, stock = $('stock').checked, sort = $('sort').value;
+  let list = products.filter(p => (!st || p.store === st) && (!ty || p.type === ty || (ty === 'sealed' && SEALED.has(p.type))) && (!stock || p.available) && p.price > 0 && (!alts.length || alts.some(ws => ws.every(w => p.key.includes(w)))));
+  const cmp = {
+    price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
+    change: (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
+    new: (a, b) => b.first_seen.localeCompare(a.first_seen), title: (a, b) => a.title.localeCompare(b.title),
+  }[sort];
+  list.sort(cmp);
+  $('count').textContent = `${list.length.toLocaleString('es-CL')} resultados` + (list.length > LIMIT ? ` (mostrando ${LIMIT}, refina la búsqueda)` : '');
+  const tb = $('rows'); tb.replaceChildren();
+  for (const p of list.slice(0, LIMIT)) {
+    const tr = tb.insertRow(); if (!p.available) tr.className = 'oos';
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; if (p.image) img.src = p.image;
+    tr.insertCell().append(img);
+    const a = document.createElement('a'); a.href = p.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = p.title;
+    tr.insertCell().append(a);
+    const tc = tr.insertCell(); tc.className = 'mut'; tc.textContent = LABEL[p.type];
+    tr.insertCell().textContent = p.store;
+    const cell = (txt, cls) => { const c = tr.insertCell(); c.className = 'num ' + (cls || ''); c.textContent = txt; };
+    const sc = tr.insertCell(); sc.className = p.available ? 'down' : 'up'; sc.textContent = p.available ? 'Sí' : 'Agotado';
+    cell(clp(p.price));
+    cell(p.prev ? clp(p.prev) : '—');
+    cell(p.delta ? (p.delta > 0 ? '▲ ' : '▼ ') + clp(Math.abs(p.delta)) + ` (${(p.delta / p.prev * 100).toFixed(0)}%)` : '', p.delta > 0 ? 'up' : p.delta < 0 ? 'down' : '');
+    const seen = tr.insertCell(); seen.className = 'mut'; seen.textContent = p.last_seen.slice(0, 10);
+  }
+}
+$('q').value = decodeURIComponent(location.hash.slice(1)) || __QUERY__;
+let t; $('q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 150); });
+for (const id of ['type', 'store', 'sort', 'stock']) $(id).addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
