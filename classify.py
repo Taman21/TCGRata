@@ -168,6 +168,10 @@ def build_groups(products, store_id):
                 o["v"] = i["variant"]
             if prev > p["price"]:
                 o["d"] = round(prev)
+            days = {h[0][:10]: round(h[1]) for h in p["history"]}  # this store's price per day, last record of the day wins
+            series = [[datetime.date.fromisoformat(d).toordinal(), v] for d, v in sorted(days.items())][-30:]
+            if len({v for _, v in series}) > 1:  # only offers whose price ever moved carry a history
+                o["h"] = series
             offers.append(o)
             image = image or p.get("image")
         titles = collections.Counter(norm(p["title"]) for p, _ in ms)
@@ -260,6 +264,8 @@ def test():
     d = lambda s: datetime.date.fromisoformat(s).toordinal()
     assert g["h"] == [[d("2026-10-01"), 100], [d("2026-10-02"), 90], [d("2026-10-05"), 80]], g["h"]
     assert g["pv"] == 1 and len(g["x"]) == 10 and len(g["o"]) == 2, g
+    by_store = {o["s"]: o for o in g["o"]}
+    assert by_store[0]["h"] == [[d("2026-10-01"), 100], [d("2026-10-05"), 80]] and "h" not in by_store[1], by_store  # per-offer history only if it moved
     print("ok")
 
 

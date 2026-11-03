@@ -137,6 +137,63 @@
   .stores li { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:5px 0; }
   .stores .stale { color:#b3261e; font-weight:600; }
 
+  /* product page */
+  .detailview .hero, .detailview .tabs, .detailview .layout { display:none; }
+  .detail { padding-top:22px; padding-bottom:60px; }
+  .crumbs { margin-bottom:20px; font-size:14px; }
+  .crumbs a { color:var(--gold-d); text-decoration:underline; text-underline-offset:3px; }
+  .pdp-top { display:grid; grid-template-columns:minmax(260px, 460px) 1fr; gap:44px; align-items:start; }
+  .pdp-img { background:var(--plate); border-radius:18px; aspect-ratio:1/1; display:grid; place-items:center; overflow:hidden; position:sticky; top:84px; }
+  .pdp-img img { width:100%; height:100%; object-fit:contain; padding:16px; mix-blend-mode:multiply; }
+  .pdp-info h1 { margin:8px 0 10px; font-size:clamp(24px, 3.2vw, 36px); line-height:1.12; letter-spacing:-.02em; max-width:none; }
+  .badges.inline { position:static; max-width:none; }
+  .pdp-price { display:flex; align-items:center; gap:12px; margin:18px 0 4px; flex-wrap:wrap; }
+  .pdp-price .coin { width:34px; height:34px; box-shadow:inset 0 0 0 3.5px #f0cf6a, inset 0 0 0 6px var(--gold-d); }
+  .pdp-price b { font-size:clamp(34px, 5vw, 48px); letter-spacing:-.03em; line-height:1; }
+  .save { margin:6px 0 18px; color:var(--drop); font-weight:600; }
+  .cta { display:inline-block; background:var(--ink); color:#fff; border-radius:12px; padding:13px 26px; font-weight:700; }
+  .cta:hover { background:#000; }
+  .acts { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; align-items:center; }
+  .acts .heart { position:static; border:1px solid var(--line); }
+  a.chipbtn { display:inline-block; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:16px 28px; margin:28px 0 0; padding-top:22px; border-top:1px solid var(--line); }
+  .stats dt { color:var(--mut); font-size:13px; }
+  .stats dd { margin:2px 0 0; font-weight:700; font-size:16px; }
+  .pdp-sec { margin-top:48px; }
+  .pdp-sec h2 { margin:0 0 4px; font-size:22px; letter-spacing:-.01em; }
+  .bigchart { max-width:900px; }
+  .bigchart svg.big { width:100%; height:auto; display:block; margin-top:14px; touch-action:pan-y; }
+  .big .grid { stroke:var(--line); stroke-width:1; }
+  .big text { fill:var(--mut); font-size:11px; font-family:var(--font); }
+  .big .area { fill:var(--gold-bg); }
+  .big .line { fill:none; stroke:var(--gold-d); stroke-width:2.4; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+  .big .rule { stroke:var(--mut); stroke-dasharray:3 3; }
+  .big .now { fill:var(--gold); stroke:var(--gold-d); stroke-width:2; }
+  .readout { min-height:1.7em; margin-top:8px; font-size:15px; }
+  .tablewrap { overflow-x:auto; margin-top:14px; }
+  table.offers { width:100%; border-collapse:collapse; min-width:680px; }
+  .offers th { text-align:left; font-size:12.5px; color:var(--mut); font-weight:600; padding:10px 14px 10px 0; border-bottom:1px solid var(--ink); }
+  .offers td { padding:13px 14px 13px 0; border-bottom:1px solid var(--line); vertical-align:middle; }
+  .offers .num { text-align:right; }
+  .offers td small { display:block; font-size:12.5px; }
+  .offers tr.out td { color:var(--mut); }
+  .offers tr.best td:first-child { box-shadow:inset 3px 0 0 var(--gold); padding-left:12px; }
+  .offers .warn { color:#b3261e; font-weight:600; }
+  .go { display:inline-block; border:1px solid var(--ink); border-radius:10px; padding:7px 14px; font-weight:600; white-space:nowrap; }
+  .go:hover { background:var(--ink); color:#fff; }
+  .spark { width:84px; height:24px; display:block; }
+  .spark .line { fill:none; stroke:var(--gold-d); stroke-width:1.6; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+  .vchips { margin-top:12px; }
+  @media (max-width:900px) {
+    .pdp-top { grid-template-columns:1fr; gap:22px; }
+    .pdp-img { position:static; max-width:440px; }
+  }
+  @media (max-width:700px) {            /* phones: store, price, data age and the button; the comparison columns live on desktop */
+    table.offers { min-width:0; }
+    .offers th:nth-child(3), .offers td:nth-child(3), .offers th:nth-child(4), .offers td:nth-child(4) { display:none; }
+    .offers td, .offers th { padding-right:10px; }
+    .go { padding:7px 10px; }
+  }
   @media (max-width:900px) {
     .layout { grid-template-columns:1fr; gap:14px; }
     .rail { display:none; position:static; }
@@ -225,6 +282,8 @@
   </main>
 </div>
 
+<main class="wrap detail" id="detail" hidden></main>
+
 <footer>
   <div class="wrap">
     <details>
@@ -253,7 +312,8 @@ const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundl
 const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['other', 'Accesorios y otros'], ['', 'Todo']];
 const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
   drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
-const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '' };
+const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '', p: '', pg: '', pb: '' };   // p/pg/pb: product page (group id, game, bucket)
+const TITLE = document.title;
 
 // Favorites live in this browser only: id -> [game, bucket], so a favorites view loads just the shards it needs.
 let favs = {};
@@ -380,18 +440,13 @@ async function render(resetPage = true) {
 function card(g) {
   const url = o => o.u.startsWith('/') ? `https://${hosts[o.s]}${o.u}` : o.u;
   const top = g.best;
-  const plate = h('a', { className: 'plate' + (g.i ? '' : ' empty'), href: url(top), target: '_blank', rel: 'noopener', tabIndex: -1, 'aria-hidden': 'true' });
+  const openProduct = () => { listView = { y: scrollY, shown }; backHash = location.hash; };   // so "back" lands where the list was
+  const plate = h('a', { className: 'plate' + (g.i ? '' : ' empty'), href: detailHref(g), onclick: openProduct, tabIndex: -1, 'aria-hidden': 'true' });
   if (g.i) plate.append(h('img', { src: g.i, alt: '', loading: 'lazy', onerror() { this.remove(); plate.classList.add('empty'); } }));
   const badges = h('div', { className: 'badges' },
     !g.live ? h('span', { className: 'badge out' }, 'Agotado') : g.drop >= .03 ? h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`) : null,
     g.pv ? h('span', { className: 'badge pre' }, 'Preventa') : null);
-  const heart = h('button', { className: 'heart', type: 'button', 'aria-pressed': String(!!favs[g.x]), 'aria-label': 'Guardar en favoritos', title: 'Guardar en favoritos' });
-  heart.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.4-9.3C1.2 8.3 3.3 5 6.7 5c2 0 3.4 1 4.3 2.4.3.4.7.4 1 0C12.9 6 14.300 5 16.300 5c3.400 0 5.500 3.300 4.100 6.700C18.500 16.400 12 21 12 21z"/></svg>';
-  heart.onclick = () => {
-    if (favs[g.x]) delete favs[g.x]; else favs[g.x] = [g.game, g.b];
-    saveFavs(); heart.setAttribute('aria-pressed', String(!!favs[g.x])); syncControls();
-    if (state.fav) render(false);                          // leaving the favorites view's list: drop the card
-  };
+  const heart = heartButton(g, () => { syncControls(); if (state.fav) render(false); });   // in the favorites view an un-hearted card leaves the list
   const pw = h('div', { className: 'pw' }, plate, badges, heart);
   const [lo, hi] = g.h ? [Math.min(...g.h.map(p => p[1])), Math.max(...g.h.map(p => p[1]))] : [0, 0];
   const hist = g.h ? h('div', { className: 'hist' }, h('div', { className: 'cap', style: 'margin:0 0 4px' }, h('span', {}, 'Historial del precio más bajo')),
@@ -405,7 +460,7 @@ function card(g) {
   const el = h('article', { className: 'card' },
     pw,
     h('div', { className: 'tags' }, !state.game ? h('span', {}, index.labels[g.game]) : null, g.l ? h('span', {}, LANG[g.l]) : null, h('span', {}, KIND[g.k])),
-    h('h3', { className: 'title' }, h('a', { href: url(top), target: '_blank', rel: 'noopener', title: g.t }, g.t)),
+    h('h3', { className: 'title' }, h('a', { href: detailHref(g), onclick: openProduct, title: g.t }, g.t)),
     h('div', { className: 'price' }, h('span', { className: 'coin', 'aria-hidden': 'true' }), h('b', {}, clp(g.price)),
       g.n > 1 ? h('span', { className: 'from' }, `en ${g.n} tiendas`) : h('span', { className: 'from' }, '1 tienda')),
     h('ol', { className: 'ladder' }, rows), hist);
@@ -427,11 +482,158 @@ function chart(g) {
   const [x0, x1, lo, hi] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const W = 240, H = 60, X = x => x1 === x0 ? W : (x - x0) / (x1 - x0) * W, Y = y => hi === lo ? H / 2 : 5 + (1 - (y - lo) / (hi - lo)) * (H - 10);
   const d = pts.map(([x, y], i) => i ? `H${X(x).toFixed(1)}V${Y(y).toFixed(1)}` : `M${X(x).toFixed(1)} ${Y(y).toFixed(1)}`).join('');
-  const ns = 'http://www.w3.org/2000/svg', el = (t, a) => Object.entries(a).reduce((e, [k, v]) => (e.setAttribute(k, v), e), document.createElementNS(ns, t));
+  const el = svgEl;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
     'aria-label': `Precio más bajo desde ${new Date(x0).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}: mínimo ${clp(lo)}, máximo ${clp(hi)}` });
   svg.append(el('path', { d, class: 'line' }), el('circle', { cx: X(x1), cy: Y(ys.at(-1)), r: 3.5, class: 'now' }));
   return svg;
+}
+
+// ---- product page: #p=<group id>&pg=<game>&pb=<bucket> ----
+let listView = null, backHash = '';
+const svgEl = (t, a = {}) => Object.entries(a).reduce((e, [k, v]) => (e.setAttribute(k, v), e), document.createElementNS('http://www.w3.org/2000/svg', t));
+const detailHref = g => `#p=${g.x}&pg=${g.game}&pb=${g.b}`;
+const offerUrl = o => o.u.startsWith('/') ? `https://${hosts[o.s]}${o.u}` : o.u;
+const storeName = o => hosts[o.s].replace(/^www\./, '');
+const dayMs = d => (d - 719163) * 864e5;                    // proleptic Gregorian ordinal -> epoch ms
+const fmtDay = ms => new Date(ms).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
+const stepTo = (pts, X, Y) => pts.map(([x, y], i) => i ? `H${X(x).toFixed(1)}V${Y(y).toFixed(1)}` : `M${X(x).toFixed(1)} ${Y(y).toFixed(1)}`).join('');
+
+function heartButton(g, after) {
+  const b = h('button', { className: 'heart', type: 'button', 'aria-pressed': String(!!favs[g.x]), 'aria-label': 'Guardar en favoritos', title: 'Guardar en favoritos' });
+  b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.4-9.3C1.2 8.3 3.3 5 6.7 5c2 0 3.4 1 4.3 2.4.3.4.7.4 1 0C12.9 6 14.3 5 16.3 5c3.4 0 5.5 3.3 4.1 6.7C18.5 16.4 12 21 12 21z"/></svg>';
+  b.onclick = () => {
+    if (favs[g.x]) delete favs[g.x]; else favs[g.x] = [g.game, g.b];
+    saveFavs(); b.setAttribute('aria-pressed', String(!!favs[g.x])); after?.();
+  };
+  return b;
+}
+
+function spark(hist) {                                       // tiny step line for one store's price history
+  const pts = hist.map(([d, p]) => [dayMs(d), p]);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, x1, lo, hi] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const W = 84, H = 24, X = x => x1 === x0 ? W : (x - x0) / (x1 - x0) * W, Y = y => hi === lo ? H / 2 : 3 + (1 - (y - lo) / (hi - lo)) * (H - 6);
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'spark', role: 'img', 'aria-label': `De ${clp(ys[0])} a ${clp(ys.at(-1))} desde ${fmtDay(x0)}` });
+  svg.append(svgEl('path', { d: stepTo(pts, X, Y), class: 'line' }));
+  return svg;
+}
+
+function bigChart(g) {                                       // lowest in-stock price over time; hover/touch reads any day
+  const pts = g.h.map(([d, p]) => [dayMs(d), p]);
+  if (pts.at(-1)[0] < Date.now() - 864e5) pts.push([Date.now(), g.price]);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, x1, lo, hi] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const W = 720, H = 250, L = 66, R = 14, T = 14, B = 30, span = (hi - lo) || hi * .1, ymin = Math.max(0, lo - span * .2), ymax = hi + span * .2;
+  const X = x => L + (x1 === x0 ? 1 : (x - x0) / (x1 - x0)) * (W - L - R), Y = y => T + (1 - (y - ymin) / (ymax - ymin)) * (H - T - B);
+  const at = t => pts.reduce((v, [x, y]) => x <= t ? y : v, pts[0][1]);   // a price holds until the next change
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'big', role: 'img',
+    'aria-label': `Historial del precio más bajo desde ${fmtDay(x0)}: mínimo ${clp(lo)}, máximo ${clp(hi)}, hoy ${clp(ys.at(-1))}` });
+  const line = stepTo(pts, X, Y);
+  for (const v of lo === hi ? [lo] : [lo, (lo + hi) / 2, hi]) {
+    svg.append(svgEl('line', { class: 'grid', x1: L, x2: W - R, y1: Y(v), y2: Y(v) }));
+    const t = svgEl('text', { x: L - 10, y: Y(v) + 4, 'text-anchor': 'end' }); t.textContent = clp(v); svg.append(t);
+  }
+  const t0 = svgEl('text', { x: L, y: H - 8 }); t0.textContent = fmtDay(x0);
+  const t1 = svgEl('text', { x: W - R, y: H - 8, 'text-anchor': 'end' }); t1.textContent = 'hoy';
+  const rule = svgEl('line', { class: 'rule', y1: T, y2: H - B, x1: X(x1), x2: X(x1) });
+  const dot = svgEl('circle', { class: 'now', r: 5, cx: X(x1), cy: Y(ys.at(-1)) });
+  svg.append(svgEl('path', { d: `${line}V${H - B}H${X(x0)}Z`, class: 'area' }), svgEl('path', { d: line, class: 'line' }), rule, dot, t0, t1);
+  const out = h('div', { className: 'readout', 'aria-live': 'polite' });
+  const show = t => {
+    const v = at(t);
+    for (const e of [rule]) { e.setAttribute('x1', X(t)); e.setAttribute('x2', X(t)); }
+    dot.setAttribute('cx', X(t)); dot.setAttribute('cy', Y(v));
+    out.replaceChildren(h('b', {}, clp(v)), ` ${t >= x1 ? 'hoy' : 'el ' + fmtDay(t)}`);
+  };
+  svg.addEventListener('pointermove', ev => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+    show(Math.min(x1, Math.max(x0, x0 + (px - L) / (W - L - R) * (x1 - x0))));
+  });
+  svg.addEventListener('pointerleave', () => show(x1));
+  show(x1);
+  return h('div', { className: 'bigchart' }, svg, out);
+}
+
+function detailView(g) {
+  const best = g.best, live = g.o.filter(o => o.a);
+  const dear = live.length > 1 ? Math.max(...live.map(o => o.p)) : 0, save = dear - g.price;
+  const lo = Math.min(g.price, ...(g.h || []).map(p => p[1])), loAt = g.h?.find(p => p[1] === lo);
+  const variants = [...new Set(g.o.map(o => o.v || ''))];
+  let vf = '';
+  const tbody = h('tbody');
+  const fill = () => tbody.replaceChildren(...g.o.filter(o => !vf || (o.v || '') === vf).map(o => h('tr', { className: [o === best && o.a ? 'best' : '', o.a ? '' : 'out'].join(' ') },
+    h('td', {}, h('b', {}, storeName(o)), o.v ? h('small', { className: 'mut' }, o.v) : null),
+    h('td', { className: 'num' }, o.a ? h('b', {}, clp(o.p)) : `Agotado (${clp(o.p)})`),
+    h('td', { className: 'num' }, o === best && o.a ? 'El más barato' : o.a && best.a ? (o.p === best.p ? 'Mismo precio' : `+${clp(o.p - best.p)} (+${Math.round((o.p - best.p) / best.p * 100)}%)`) : ''),
+    h('td', {}, o.h ? spark(o.h) : h('span', { className: 'mut' }, 'sin cambios')),
+    h('td', { className: staleStore[o.s] ? 'warn' : 'mut', title: staleStore[o.s] ? 'No pudimos actualizar esta tienda hace tiempo: el precio puede haber cambiado' : '' }, ago(fresh(index.stores[o.s]))),
+    h('td', {}, h('a', { className: 'go', href: offerUrl(o), target: '_blank', rel: 'noopener' }, 'Ir a la tienda')))));
+  fill();
+  const vchips = variants.length > 1 ? h('div', { className: 'seg vchips', 'aria-label': 'Variante' }, ...['', ...variants.filter(Boolean)].map(v => h('button', { type: 'button', textContent: v || 'Todas',
+    'aria-pressed': String(v === vf), onclick(ev) { vf = v; fill(); for (const b of ev.target.parentNode.children) b.setAttribute('aria-pressed', String(b === ev.target)); } }))) : null;
+  const copy = h('button', { className: 'chipbtn', type: 'button' }, 'Copiar enlace');
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(location.href); copy.textContent = 'Enlace copiado'; } catch { copy.textContent = 'Copia la dirección del navegador'; }
+    setTimeout(() => { copy.textContent = 'Copiar enlace'; }, 2200);
+  };
+  const wa = h('a', { className: 'chipbtn', target: '_blank', rel: 'noopener',
+    href: `https://wa.me/?text=${encodeURIComponent(`${g.t}: desde ${clp(g.price)} en TCGRata ${location.href}`)}` }, 'Compartir por WhatsApp');
+  const stat = (k, v) => h('div', {}, h('dt', {}, k), h('dd', {}, v));
+  return h('article', { className: 'pdp' },
+    h('nav', { className: 'crumbs', 'aria-label': 'Ruta' }, h('a', { href: backHash || '#' }, 'Volver a los resultados')),
+    h('div', { className: 'pdp-top' },
+      h('div', { className: 'pdp-img' }, g.i ? h('img', { src: g.i, alt: g.t }) : h('span', { className: 'mut' }, 'Sin imagen')),
+      h('div', { className: 'pdp-info' },
+        h('div', { className: 'tags', style: 'margin-top:0' }, h('span', {}, index.labels[g.game]), g.l ? h('span', {}, LANG[g.l]) : null, h('span', {}, KIND[g.k])),
+        h('h1', {}, g.t),
+        h('div', { className: 'badges inline' }, !g.live ? h('span', { className: 'badge out' }, 'Agotado') : g.drop >= .03 ? h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`) : null,
+          g.pv ? h('span', { className: 'badge pre' }, 'Preventa') : null),
+        h('div', { className: 'pdp-price' }, h('span', { className: 'coin', 'aria-hidden': 'true' }), h('b', {}, clp(g.price)),
+          h('span', { className: 'mut' }, g.live ? `en ${storeName(best)}` : 'agotado en todas las tiendas')),
+        save > 0 ? h('p', { className: 'save' }, `Ahorras ${clp(save)} (${Math.round(save / dear * 100)}%) frente a la tienda más cara con stock.`) : null,
+        h('a', { className: 'cta', href: offerUrl(best), target: '_blank', rel: 'noopener' }, g.live ? `Ir a ${storeName(best)}` : 'Ver en la tienda'),
+        h('div', { className: 'acts' }, heartButton(g, syncControls), copy, wa),
+        h('dl', { className: 'stats' },
+          stat('Precio más bajo registrado', loAt ? `${clp(lo)} el ${fmtDay(dayMs(loAt[0]))}` : clp(lo)),
+          stat('Ofertas', `${live.length} con stock de ${g.o.length}`),
+          dear ? stat('Precio más alto con stock', clp(dear)) : null,
+          stat('Lo seguimos desde', fmtDay(new Date(g.f)))))),
+    h('section', { className: 'pdp-sec' }, h('h2', {}, 'Historial del precio'),
+      g.h ? [h('p', { className: 'mut' }, `Precio más bajo entre las tiendas con stock, desde ${fmtDay(dayMs(g.h[0][0]))}. Pasa el cursor por el gráfico para ver cada día.`), bigChart(g)]
+        : h('p', { className: 'mut' }, `Este producto no ha cambiado de precio desde que lo seguimos (${fmtDay(new Date(g.f))}).`)),
+    h('section', { className: 'pdp-sec' }, h('h2', {}, 'Dónde comprar'), vchips,
+      h('div', { className: 'tablewrap' }, h('table', { className: 'offers' },
+        h('thead', {}, h('tr', {}, ...[['Tienda', ''], ['Precio', 'num'], ['Frente al más barato', 'num'], ['Historial', ''], ['Dato de', ''], ['', '']].map(([t, c]) => h('th', { scope: 'col', className: c }, t)))),
+        tbody))));
+}
+
+async function renderDetail() {
+  const mine = ++token, box = $('detail');
+  scrollTo(0, 0);
+  box.replaceChildren(h('div', { className: 'status' }, 'Cargando producto…'));
+  let g = null;
+  if (index.games[state.pg]?.[state.pb]) {
+    try { g = (await loadShard(state.pg, state.pb)).find(x => x.x === state.p); } catch { /* shown as not found below */ }
+  }
+  if (mine !== token) return;                                // the user already went elsewhere
+  if (!g) {
+    document.title = TITLE;
+    box.replaceChildren(h('div', { className: 'status' }, h('b', {}, 'No encontramos este producto'),
+      'Pudo cambiar de nombre o salir de las tiendas. ', h('a', { className: 'linkbtn', href: backHash || '#' }, 'Volver a los resultados')));
+    return;
+  }
+  document.title = `${g.t} - TCGRata`;
+  box.replaceChildren(detailView(g));
+}
+
+async function route() {
+  document.body.classList.toggle('detailview', !!state.p);
+  $('detail').hidden = !state.p;
+  if (state.p) return renderDetail();
+  document.title = TITLE;
+  if (listView) { const v = listView; listView = null; shown = v.shown; await render(false); scrollTo(0, v.y); }
+  else render();
 }
 
 // ---- controls ----
@@ -503,8 +705,8 @@ $('b-fav').addEventListener('click', () => { state.fav = state.fav ? '' : '1'; r
 $('reset').addEventListener('click', resetFilters);
 $('railbtn').addEventListener('click', () => { const o = $('rail').classList.toggle('open'); $('railbtn').setAttribute('aria-expanded', o); });
 addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('q').focus(); } });
-addEventListener('hashchange', () => { state = { ...DEFAULT, ...readHash() }; render(); });
-render();
+addEventListener('hashchange', () => { state = { ...DEFAULT, ...readHash() }; route(); });
+route();
 </script>
 </body>
 </html>
