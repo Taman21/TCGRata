@@ -50,3 +50,18 @@ Objetivo: precios frescos y sitio con 99% de uptime, sin pagar nada.
 2. ¿Reporte solo personal o público?
 3. ¿Cuenta de Cloudflare, o parto con GitHub Pages?
 4. Historial a conservar: todo, 90 días o 1 año.
+
+## Fase 3: puesta en marcha (estado)
+Workflow: `.github/workflows/crawl.yml` (cron cada 6h + manual). El estado (`data.json.gz`) vive en el release `data` del repo (privado), no en git.
+
+Pasos únicos:
+1. `gh auth refresh -s workflow` (el token necesita el scope `workflow` para subir el workflow).
+2. Subir el estado inicial para no perder historial: `gzip -c data.json > data.json.gz; gh release create data data.json.gz --title data --notes estado`.
+3. Cloudflare (gratis): crear cuenta, API token con permiso "Cloudflare Pages: Edit", luego
+   `gh secret set CLOUDFLARE_API_TOKEN` y `gh secret set CLOUDFLARE_ACCOUNT_ID`. Sin estos secretos el workflow igual crawlea y guarda datos, solo omite el deploy.
+4. Probar: `gh workflow run crawl` y mirar `gh run watch`.
+
+Notas:
+- GitHub Pages no sirve: en cuenta Free no publica repos privados. Por eso Cloudflare Pages.
+- El sitio en `*.pages.dev` es público aunque el repo sea privado. Para restringirlo: Cloudflare Access (gratis hasta 50 usuarios).
+- Presupuesto: 2000 min/mes / (4 corridas/día * 30) = ~16 min por corrida. Si un ciclo tarda más, subir el intervalo en el cron.
