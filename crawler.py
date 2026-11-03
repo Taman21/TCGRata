@@ -114,21 +114,43 @@ def cat_text(*parts):
     return " | ".join(dict.fromkeys(html.unescape(str(x)).strip() for x in parts if x and str(x).strip()))
 
 
-def paged(fetch_page, workers=4):
-    """Yield items of fetch_page(n) for n=1.., `workers` pages at a time; stop at the first empty page."""
+def paged(fetch_page, workers=4, key=None, max_pages=MAX_PAGES):
+    """Yield items of fetch_page(n) for n=1.., `workers` pages at a time; stop at the first empty page.
+    key: for platforms that repeat the last page instead of returning nothing, a page with no unseen key counts as empty.
+    If a parallel batch fails (rate limit, 429), that page is retried alone and the rest go one at a time, slower."""
+    seen, n, step = set(), 1, workers
     with ThreadPoolExecutor(workers) as ex:
-        for start in range(1, MAX_PAGES, workers):
-            for items in list(ex.map(fetch_page, range(start, start + workers))):
+        while n < max_pages:
+            try:
+                batch = list(ex.map(fetch_page, range(n, n + step))) if step > 1 else [fetch_page(n)]
+            except Exception:
+                if step == 1:
+                    raise
+                step = 1
+                continue
+            for items in batch:
+                if key:
+                    fresh = [i for i in items if key(i) not in seen]
+                    seen.update(key(i) for i in fresh)
+                    items = fresh
                 if not items:
                     return
                 yield from items
-            time.sleep(DELAY)
+            n += step
+            time.sleep(DELAY * (1 if step > 1 else 3))
 
 
 def shopify(host):
     def page(n):
         out = []
-        for p in json.loads(fetch(f"https://{host}/products.json?limit=250&page={n}")).get("products", []):
+        try:
+            products = json.loads(fetch(f"https://{host}/products.json?limit=250&page={n}")).get("products", [])
+        except urllib.error.HTTPError as e:
+            # ponytail: Shopify answers 400 past page 100 (25,000 products): a store that big is read only up to there; since_id is the upgrade path
+            if e.code == 400 and n > 1:
+                return []
+            raise
+        for p in products:
             v = p.get("variants") or [{}]
             tags = p.get("tags") or []
             out.append({"id": p["id"], "title": p["title"], "url": f"https://{host}/products/{p['handle']}",
@@ -199,15 +221,8 @@ def odoo_cards(host, path):
 
 
 def odoo(host, search=""):
-    seen = set()
-    for page in range(1, MAX_PAGES * 2):  # 15 per page and no way to raise it
-        items = [p for p in odoo_cards(host, f"/shop/page/{page}?search={search}") if p["id"] not in seen]
-        if not items:
-            return
-        for p in items:
-            seen.add(p["id"])
-            yield p
-        time.sleep(DELAY)
+    # 15 per page and no way to raise it, hence the parallel pages; past the last page Odoo repeats it, so `key` ends the walk
+    yield from paged(lambda n: list(odoo_cards(host, f"/shop/page/{n}?search={search}")), key=lambda p: p["id"], max_pages=MAX_PAGES * 2)
 
 
 def sitemap_entries(host):
