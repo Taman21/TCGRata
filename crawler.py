@@ -466,7 +466,7 @@ def write_site(data):
     stores = [{"host": h, **{k: v for k, v in data["stores"][h].items() if k in ("platform", "last_crawl", "last_ok", "fails", "error")},
                "count": counts[h]} for h in hosts]
     index = {"generated": datetime.now().astimezone().isoformat(timespec="minutes"), "stores": stores, "games": games,
-             "labels": classify.CFG["labels"], "products": len(data["products"])}
+             "labels": classify.CFG["labels"], "search": classify.CFG["search"], "products": len(data["products"])}
     (out / "index.json").write_text(dump(index), "utf-8")
 
 

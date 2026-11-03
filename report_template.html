@@ -72,6 +72,26 @@
   .bar .count { font-weight:600; }
   .bar .sort { margin-left:auto; display:flex; align-items:center; gap:8px; }
   .bar select { border:1px solid var(--line); border-radius:8px; padding:7px 10px; background:#fff; }
+  .chipbtn { border:1px solid var(--line); background:#fff; border-radius:99px; padding:6px 13px; cursor:pointer; font-weight:600; font-size:14px; }
+  .chipbtn:hover { border-color:var(--mut); }
+  .chipbtn[aria-pressed=true] { background:var(--gold-bg); border-color:var(--gold); color:var(--gold-d); }
+  .also { margin:-8px 0 16px; font-size:13.5px; }
+  .favview .tabs, .favview .rail, .favview .railbtn { display:none; }
+  .favview .layout { grid-template-columns:1fr; }
+
+  .pw { position:relative; }
+  .badges { position:absolute; left:10px; top:10px; display:flex; flex-wrap:wrap; gap:5px; max-width:calc(100% - 58px); }
+  .heart { position:absolute; right:8px; top:8px; width:36px; height:36px; display:grid; place-items:center; border:0; border-radius:50%; background:#fff; cursor:pointer; color:var(--mut); }
+  .heart:hover { color:var(--ink); }
+  .heart[aria-pressed=true] { color:var(--gold-d); }
+  .heart[aria-pressed=true] svg { fill:var(--gold); }
+  .heart svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; }
+  .hist { display:none; margin-top:10px; }
+  .card.open .hist { display:block; }
+  .hist svg { width:100%; height:auto; display:block; overflow:visible; }
+  .hist .line { fill:none; stroke:var(--gold-d); stroke-width:2; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+  .hist .now { fill:var(--gold); stroke:var(--gold-d); stroke-width:1.5; }
+  .hist .cap { display:flex; justify-content:space-between; font-size:12px; color:var(--mut); margin-top:4px; }
 
   /* product grid */
   .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(236px, 1fr)); gap:30px 22px; }
@@ -79,8 +99,9 @@
   .plate { display:block; aspect-ratio:1/1; background:var(--plate); border-radius:14px; overflow:hidden; position:relative; }
   .plate img { width:100%; height:100%; object-fit:contain; padding:10px; mix-blend-mode:multiply; }
   .plate.empty::after { content:"Sin imagen"; position:absolute; inset:0; display:grid; place-items:center; color:var(--mut); font-size:13px; }
-  .badge { position:absolute; left:10px; top:10px; background:#fff; border-radius:99px; padding:3px 9px; font-size:12px; font-weight:700; color:var(--drop); }
+  .badge { background:#fff; border-radius:99px; padding:3px 9px; font-size:12px; font-weight:700; color:var(--drop); }
   .badge.out { color:var(--mut); }
+  .badge.pre { background:var(--gold-bg); color:var(--gold-d); }
   .tags { display:flex; flex-wrap:wrap; gap:4px 10px; margin:12px 0 4px; font-size:12.5px; color:var(--mut); }
   .title { margin:0; font-size:15px; line-height:1.3; font-weight:600; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.6em; }
   .title:hover { text-decoration:underline; text-underline-offset:3px; }
@@ -179,12 +200,15 @@
     <div><h2>Tienda</h2><select id="f-store" aria-label="Tienda"></select></div>
     <div><h2>Precio (CLP)</h2><div class="range"><input type="number" id="f-min" min="0" step="1000" placeholder="Desde" aria-label="Precio mínimo"><input type="number" id="f-max" min="0" step="1000" placeholder="Hasta" aria-label="Precio máximo"></div></div>
     <label class="check"><input type="checkbox" id="f-stock" checked> Solo con stock</label>
+    <label class="check"><input type="checkbox" id="f-pre"> Solo preventas</label>
     <button class="linkbtn" id="reset" type="button" style="align-self:flex-start">Limpiar filtros</button>
   </aside>
   <main>
     <div class="bar">
       <button class="railbtn" id="railbtn" type="button" aria-expanded="false" aria-controls="rail">Filtros</button>
       <div class="count" id="count" aria-live="polite"></div>
+      <button class="chipbtn" id="b-drop" type="button" aria-pressed="false">Bajaron de precio</button>
+      <button class="chipbtn" id="b-fav" type="button" aria-pressed="false">Mis favoritos <span id="favn"></span></button>
       <label class="sort mut">Ordenar por
         <select id="sort">
           <option value="stores">Más tiendas</option>
@@ -196,6 +220,7 @@
         </select>
       </label>
     </div>
+    <div class="also mut" id="also" aria-live="polite"></div>
     <div id="out"></div>
   </main>
 </div>
@@ -215,12 +240,25 @@ const PAGE = 48;
 const $ = id => document.getElementById(id);
 const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘']/g, '');
+const sq = s => norm(s).replace(/[^a-z0-9]+/g, ' ').trim();   // letters and digits only: "Yu-Gi-Oh!" and "yu gi oh" compare equal
+let aliasRules = [];                                          // groups of equivalent terms (Delta Reign = Dominio Delta), from aliases.json
+function expand(phrase) {                                     // one pass: swap a known term for each of its equivalents
+  const out = new Set([phrase]), padded = ` ${phrase} `;
+  for (const grp of aliasRules) for (const t of grp) if (padded.includes(` ${t} `))
+    for (const u of grp) if (u !== t) out.add(padded.replace(` ${t} `, ` ${u} `).trim());
+  return out;
+}
 const LANG = { es: 'Español', en: 'Inglés', ja: 'Japonés', ko: 'Coreano', zh: 'Chino', fr: 'Francés', de: 'Alemán', it: 'Italiano', pt: 'Portugués', multi: 'Varios idiomas' };
 const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', accesorio: 'Accesorio', otro: 'Otro' };
 const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['other', 'Accesorios y otros'], ['', 'Todo']];
 const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
   drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
-const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__ };
+const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '' };
+
+// Favorites live in this browser only: id -> [game, bucket], so a favorites view loads just the shards it needs.
+let favs = {};
+try { favs = JSON.parse(localStorage.getItem('tcgrata:fav') || '{}'); } catch { /* storage blocked: favorites last for this visit */ }
+const saveFavs = () => { try { localStorage.setItem('tcgrata:fav', JSON.stringify(favs)); } catch { /* ignore */ } };
 
 const STALE_MS = 24 * 36e5;
 let index, hosts = [], staleStore = [], fresh = s => s.last_ok || s.last_crawl;   // last_ok = last crawl without errors
@@ -257,25 +295,27 @@ function loadShard(game, bucket) {
   const key = `${game}.${bucket}`;
   if (!cache.has(key)) {
     const n = index.games[game][bucket].parts;
-    cache.set(key, Promise.all(Array.from({ length: n }, (_, i) => fetch(`data/${key}.${i}.json`).then(r => r.json()))).then(parts => parts.flat().map(g => prep(g, game))));
+    cache.set(key, Promise.all(Array.from({ length: n }, (_, i) => fetch(`data/${key}.${i}.json`).then(r => r.json()))).then(parts => parts.flat().map(g => prep(g, game, bucket))));
   }
   return cache.get(key);
 }
-function prep(g, game) {
+function prep(g, game, b) {
   const live = g.o.filter(o => o.a);
   // Offers arrive sorted: in stock first, then cheapest. A price from a store we couldn't refresh lately never headlines a group if a fresh one exists.
   const best = live.find(o => !staleStore[o.s]) || live[0] || g.o[0];
   const variants = new Set(g.o.map(o => o.v || ''));
   return Object.assign(g, {
-    game, best, live: live.length > 0, price: best.p, n: new Set(g.o.map(o => o.s)).size,
-    drop: best.d ? (best.d - best.p) / best.d : 0, t_new: g.f,
-    text: norm(`${g.t} ${index.labels[game] || ''} ${LANG[g.l] || ''} ${KIND[g.k] || ''} ${[...variants].join(' ')}`),
+    game, b, best, live: live.length > 0, price: best.p, n: new Set(g.o.map(o => o.s)).size,
+    // ponytail: a "drop" over 80% is almost always a bad earlier price (wrong unit, placeholder), not a sale: ignored
+    drop: best.d && best.d <= best.p * 5 ? (best.d - best.p) / best.d : 0, t_new: g.f,
+    text: sq(`${g.t} ${index.labels[game] || ''} ${LANG[g.l] || ''} ${KIND[g.k] || ''} ${[...variants].join(' ')}`),
   });
 }
 async function groupsFor(s, onProgress) {
   const games = s.game ? [s.game] : Object.keys(index.games);
   const buckets = s.type ? [s.type] : ['sealed', 'single', 'other'];
-  const jobs = games.flatMap(g => buckets.filter(b => index.games[g]?.[b]).map(b => [g, b]));
+  const jobs = s.fav ? [...new Set(Object.values(favs).map(v => v.join('|')))].map(v => v.split('|')).filter(([g, b]) => index.games[g]?.[b])
+    : games.flatMap(g => buckets.filter(b => index.games[g]?.[b]).map(b => [g, b]));
   let done = 0;
   const lists = await Promise.all(jobs.map(([g, b]) => loadShard(g, b).then(r => { onProgress?.(++done, jobs.length); return r; })));
   return lists.flat();
@@ -283,6 +323,9 @@ async function groupsFor(s, onProgress) {
 
 // ---- filtering ----
 function matches(g, s, alts) {
+  if (s.fav) return !!favs[g.x] && (!alts.length || alts.some(ws => ws.every(w => g.text.includes(w))));   // favorites ignore the other filters
+  if (s.drop && g.drop < .03) return false;
+  if (s.pre && !g.pv) return false;
   if (s.lang && (s.lang === 'none' ? g.l : g.l !== s.lang)) return false;
   if (s.kind && g.k !== s.kind) return false;
   if (s.stock && !g.live) return false;
@@ -298,7 +341,12 @@ async function render(resetPage = true) {
   if (resetPage) shown = PAGE;
   writeHash(); syncControls();
   const out = $('out');
-  const alts = norm(state.q).split(',').map(x => x.split(/\s+/).filter(Boolean)).filter(x => x.length);
+  // comma = OR between phrases, space = AND between words; known equivalents (ES/EN names) join the OR
+  const asked = state.q.split(',').map(sq).filter(Boolean);
+  const phrases = new Set(asked.flatMap(p => [...expand(p)]));
+  const alts = [...phrases].map(p => p.split(' '));
+  const extra = [...phrases].filter(p => !asked.includes(p));
+  $('also').textContent = extra.length ? `También busca: ${extra.join(', ')}` : '';
   const pending = !cache.has(`${state.game}.${state.type}`) || !state.game || !state.type;
   if (pending) {
     out.replaceChildren(h('div', { className: 'grid', 'aria-hidden': 'true' }, ...Array.from({ length: 8 }, () => h('div', { className: 'skeleton' }))));
@@ -315,8 +363,10 @@ async function render(resetPage = true) {
   const list = groups.filter(g => matches(g, state, alts)).sort(SORTS[state.sort]);
   $('count').textContent = `${list.length.toLocaleString('es-CL')} ${list.length === 1 ? 'producto' : 'productos'}`;
   if (!list.length) {
-    out.replaceChildren(h('div', { className: 'status' }, h('b', {}, 'Sin resultados'),
-      'Prueba con menos palabras o quita algún filtro. ', h('button', { className: 'linkbtn', type: 'button', onclick: resetFilters }, 'Limpiar filtros')));
+    out.replaceChildren(state.fav && !Object.keys(favs).length
+      ? h('div', { className: 'status' }, h('b', {}, 'Aún no tienes favoritos'), 'Toca el corazón de un producto para guardarlo. Se guardan solo en este navegador.')
+      : h('div', { className: 'status' }, h('b', {}, 'Sin resultados'),
+        'Prueba con menos palabras o quita algún filtro. ', h('button', { className: 'linkbtn', type: 'button', onclick: resetFilters }, 'Limpiar filtros')));
     return;
   }
   const grid = h('div', { className: 'grid' }, list.slice(0, shown).map(card));
@@ -332,8 +382,20 @@ function card(g) {
   const top = g.best;
   const plate = h('a', { className: 'plate' + (g.i ? '' : ' empty'), href: url(top), target: '_blank', rel: 'noopener', tabIndex: -1, 'aria-hidden': 'true' });
   if (g.i) plate.append(h('img', { src: g.i, alt: '', loading: 'lazy', onerror() { this.remove(); plate.classList.add('empty'); } }));
-  if (!g.live) plate.append(h('span', { className: 'badge out' }, 'Agotado'));
-  else if (g.drop >= .03) plate.append(h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`));
+  const badges = h('div', { className: 'badges' },
+    !g.live ? h('span', { className: 'badge out' }, 'Agotado') : g.drop >= .03 ? h('span', { className: 'badge' }, `Bajó ${Math.round(g.drop * 100)}%`) : null,
+    g.pv ? h('span', { className: 'badge pre' }, 'Preventa') : null);
+  const heart = h('button', { className: 'heart', type: 'button', 'aria-pressed': String(!!favs[g.x]), 'aria-label': 'Guardar en favoritos', title: 'Guardar en favoritos' });
+  heart.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.4-9.3C1.2 8.3 3.3 5 6.7 5c2 0 3.4 1 4.3 2.4.3.4.7.4 1 0C12.9 6 14.300 5 16.300 5c3.400 0 5.500 3.300 4.100 6.700C18.500 16.400 12 21 12 21z"/></svg>';
+  heart.onclick = () => {
+    if (favs[g.x]) delete favs[g.x]; else favs[g.x] = [g.game, g.b];
+    saveFavs(); heart.setAttribute('aria-pressed', String(!!favs[g.x])); syncControls();
+    if (state.fav) render(false);                          // leaving the favorites view's list: drop the card
+  };
+  const pw = h('div', { className: 'pw' }, plate, badges, heart);
+  const [lo, hi] = g.h ? [Math.min(...g.h.map(p => p[1])), Math.max(...g.h.map(p => p[1]))] : [0, 0];
+  const hist = g.h ? h('div', { className: 'hist' }, h('div', { className: 'cap', style: 'margin:0 0 4px' }, h('span', {}, 'Historial del precio más bajo')),
+    chart(g), h('div', { className: 'cap' }, h('span', {}, `Mín ${clp(lo)}`), h('span', {}, `Máx ${clp(hi)}`))) : null;
 
   const rows = g.o.map((o, i) => h('li', { className: [o === top && o.a ? 'best' : '', o.a ? '' : 'out', staleStore[o.s] ? 'old' : '', i >= 3 ? 'extra' : ''].join(' ') },
     h('a', { href: url(o), target: '_blank', rel: 'noopener', title: staleStore[o.s] ? 'No pudimos actualizar esta tienda hace tiempo: el precio puede haber cambiado' : '' },
@@ -341,18 +403,35 @@ function card(g) {
         staleStore[o.s] ? h('small', { className: 'warn' }, ago(fresh(index.stores[o.s]))) : null),
       h('span', { className: 'pr' }, o.a ? clp(o.p) : 'Agotado'))));
   const el = h('article', { className: 'card' },
-    plate,
+    pw,
     h('div', { className: 'tags' }, !state.game ? h('span', {}, index.labels[g.game]) : null, g.l ? h('span', {}, LANG[g.l]) : null, h('span', {}, KIND[g.k])),
     h('h3', { className: 'title' }, h('a', { href: url(top), target: '_blank', rel: 'noopener', title: g.t }, g.t)),
     h('div', { className: 'price' }, h('span', { className: 'coin', 'aria-hidden': 'true' }), h('b', {}, clp(g.price)),
       g.n > 1 ? h('span', { className: 'from' }, `en ${g.n} tiendas`) : h('span', { className: 'from' }, '1 tienda')),
-    h('ol', { className: 'ladder' }, rows));
-  if (g.o.length > 3) {
-    const btn = h('button', { className: 'linkbtn more', type: 'button', 'aria-expanded': 'false' }, `Ver las ${g.o.length} ofertas`);
-    btn.onclick = () => { const open = el.classList.toggle('open'); btn.setAttribute('aria-expanded', open); btn.textContent = open ? 'Ver menos' : `Ver las ${g.o.length} ofertas`; };
+    h('ol', { className: 'ladder' }, rows), hist);
+  if (g.o.length > 3 || g.h) {
+    const label = open => open ? 'Ver menos' : g.o.length > 3 ? `Ver las ${g.o.length} ofertas${g.h ? ' e historial' : ''}` : 'Ver historial de precio';
+    const btn = h('button', { className: 'linkbtn more', type: 'button', 'aria-expanded': 'false' }, label(false));
+    btn.onclick = () => { const open = el.classList.toggle('open'); btn.setAttribute('aria-expanded', open); btn.textContent = label(open); };
     el.append(btn);
   }
   return el;
+}
+
+// Step line of the group's lowest in-stock price: a price holds until the next change. g.h = [[day ordinal, price], ...]
+function chart(g) {
+  const day = d => (d - 719163) * 864e5;                    // proleptic Gregorian ordinal -> epoch ms
+  const pts = g.h.map(([d, p]) => [day(d), p]);
+  if (pts.at(-1)[0] < Date.now() - 864e5) pts.push([Date.now(), g.price]);   // hold the last known price up to today
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, x1, lo, hi] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const W = 240, H = 60, X = x => x1 === x0 ? W : (x - x0) / (x1 - x0) * W, Y = y => hi === lo ? H / 2 : 5 + (1 - (y - lo) / (hi - lo)) * (H - 10);
+  const d = pts.map(([x, y], i) => i ? `H${X(x).toFixed(1)}V${Y(y).toFixed(1)}` : `M${X(x).toFixed(1)} ${Y(y).toFixed(1)}`).join('');
+  const ns = 'http://www.w3.org/2000/svg', el = (t, a) => Object.entries(a).reduce((e, [k, v]) => (e.setAttribute(k, v), e), document.createElementNS(ns, t));
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': `Precio más bajo desde ${new Date(x0).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}: mínimo ${clp(lo)}, máximo ${clp(hi)}` });
+  svg.append(el('path', { d, class: 'line' }), el('circle', { cx: X(x1), cy: Y(ys.at(-1)), r: 3.5, class: 'now' }));
+  return svg;
 }
 
 // ---- controls ----
@@ -386,12 +465,18 @@ function syncControls() {
   $('f-kind').value = state.kind;
   $('f-store').value = state.store; $('f-min').value = state.min; $('f-max').value = state.max;
   $('f-stock').checked = !!state.stock; $('sort').value = state.sort; $('q').value = state.q;
+  $('f-pre').checked = !!state.pre;
+  $('b-drop').setAttribute('aria-pressed', String(!!state.drop));
+  $('b-fav').setAttribute('aria-pressed', String(!!state.fav));
+  $('favn').textContent = Object.keys(favs).length ? `(${Object.keys(favs).length})` : '';
+  document.body.classList.toggle('favview', !!state.fav);
 }
 function resetFilters() { state = { ...DEFAULT, q: state.q, game: state.game }; render(); }
 
 // ---- boot ----
 index = await (await fetch('data/index.json')).json();
 hosts = index.stores.map(s => s.host);
+aliasRules = (index.search || []).map(grp => grp.map(sq));
 Object.assign(state, readHash());
 buildTabs();
 $('f-store').replaceChildren(new Option('Todas las tiendas', ''), ...index.stores.map((s, i) => new Option(s.host.replace(/^www\./, ''), i)));
@@ -412,6 +497,9 @@ $('searchform').addEventListener('submit', e => { e.preventDefault(); state.q = 
 for (const [id, key] of [['f-kind', 'kind'], ['f-store', 'store'], ['sort', 'sort'], ['f-min', 'min'], ['f-max', 'max']])
   $(id).addEventListener('change', () => { state[key] = $(id).value; render(); });
 $('f-stock').addEventListener('change', () => { state.stock = $('f-stock').checked ? '1' : ''; render(); });
+$('f-pre').addEventListener('change', () => { state.pre = $('f-pre').checked ? '1' : ''; render(); });
+$('b-drop').addEventListener('click', () => { state.drop = state.drop ? '' : '1'; if (state.drop) state.sort = 'drop'; render(); });
+$('b-fav').addEventListener('click', () => { state.fav = state.fav ? '' : '1'; render(); });
 $('reset').addEventListener('click', resetFilters);
 $('railbtn').addEventListener('click', () => { const o = $('rail').classList.toggle('open'); $('railbtn').setAttribute('aria-expanded', o); });
 addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('q').focus(); } });

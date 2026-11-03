@@ -4,7 +4,7 @@ product sold by different stores lines up. Vocabulary lives in aliases.json (edi
   python classify.py --report    coverage + grouping quality over data.json
   python classify.py --test      self-check
 """
-import collections, json, re, sys, unicodedata
+import collections, datetime, hashlib, json, re, sys, unicodedata
 from pathlib import Path
 
 DIR = Path(__file__).parent
@@ -150,7 +150,7 @@ def build_groups(products, store_id):
         if p["price"] > 0 and p["store"] in store_id:
             members[info[pid]["key"]].append((p, info[pid]))
     out = collections.defaultdict(list)
-    for ms in members.values():
+    for key, ms in members.items():
         offers, image = [], None
         for p, i in sorted(ms, key=lambda m: (not m[0]["available"], m[0]["price"])):
             prev = next((h[1] for h in reversed(p["history"]) if h[1] != p["price"]), 0)
@@ -167,9 +167,29 @@ def build_groups(products, store_id):
         title = min((p["title"] for p, _ in ms), key=lambda t: (-titles[norm(t)], t.isupper(), len(t)))
         kind = collections.Counter(i["kind"] for _, i in ms).most_common(1)[0][0]
         game = ms[0][1]["game"] or "otros"
-        out[(game, bucket(kind))].append({"t": title, "k": kind, "l": ms[0][1]["lang"] or "", "i": image or "",
-                                          "f": min(p["first_seen"] for p, _ in ms)[:10], "o": offers})
+        g = {"x": hashlib.md5(key.encode()).hexdigest()[:10], "t": title, "k": kind, "l": ms[0][1]["lang"] or "", "i": image or "",
+             "f": min(p["first_seen"] for p, _ in ms)[:10], "o": offers}
+        if any(PREORDER.search(norm(p["title"])) for p, _ in ms):
+            g["pv"] = 1
+        if hist := price_history(ms):
+            g["h"] = hist
+        out[(game, bucket(kind))].append(g)
     return out
+
+
+PREORDER = re.compile(r"preventa|pre-?order|pre venta")
+
+
+def price_history(ms):
+    """Lowest in-stock price over time across a group's offers: [[day ordinal, price], ...] (last 30 days seen), or None if it never moved."""
+    events = sorted((h[0][:16], n, h[1], h[2]) for n, (p, _) in enumerate(ms) for h in p["history"])
+    now, by_day = {}, {}
+    for ts, n, price, avail in events:
+        now[n] = price if avail and price > 0 else None
+        if live := [v for v in now.values() if v]:
+            by_day[ts[:10]] = round(min(live))  # the last event of a day wins
+    pts = [[datetime.date.fromisoformat(d).toordinal(), v] for d, v in sorted(by_day.items())][-30:]
+    return pts if len({v for _, v in pts}) > 1 else None
 
 
 def report():
@@ -225,6 +245,14 @@ def test():
     assert i["1"]["key"] == i["2"]["key"], (i["1"], i["2"])
     assert i["3"]["key"] == i["4"]["key"], (i["3"], i["4"])
     assert i["5"]["key"] != i["1"]["key"]
+    # group history: lowest in-stock price over time; preorder flag; stable id
+    base = {"title": "Pokemon Elite Trainer Box Foo [PREVENTA]", "price": 80, "available": True, "first_seen": "2026-10-01T10:00", "url": "https://a/x", "store": "a"}
+    hp = {"1": {**base, "history": [["2026-10-01T10:00", 100, True], ["2026-10-05T10:00", 80, True]]},
+          "2": {**base, "store": "b", "url": "https://b/x", "price": 90, "history": [["2026-10-02T10:00", 90, True]]}}
+    g = next(iter(build_groups(hp, {"a": 0, "b": 1}).values()))[0]
+    d = lambda s: datetime.date.fromisoformat(s).toordinal()
+    assert g["h"] == [[d("2026-10-01"), 100], [d("2026-10-02"), 90], [d("2026-10-05"), 80]], g["h"]
+    assert g["pv"] == 1 and len(g["x"]) == 10 and len(g["o"]) == 2, g
     print("ok")
 
 
