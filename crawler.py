@@ -105,6 +105,11 @@ def discover(queries=QUERIES):
 
 
 # ---------- platform adapters: each yields dicts {id,title,url,price,available,image} ----------
+def cat_text(*parts):
+    """Store-side category/tags/vendor as one string: the strongest hint of a product's game (classify.py reads it)."""
+    return " | ".join(dict.fromkeys(html.unescape(str(x)).strip() for x in parts if x and str(x).strip()))
+
+
 def paged(fetch_page, workers=4):
     """Yield items of fetch_page(n) for n=1.., `workers` pages at a time; stop at the first empty page."""
     with ThreadPoolExecutor(workers) as ex:
@@ -121,9 +126,11 @@ def shopify(host):
         out = []
         for p in json.loads(fetch(f"https://{host}/products.json?limit=250&page={n}")).get("products", []):
             v = p.get("variants") or [{}]
+            tags = p.get("tags") or []
             out.append({"id": p["id"], "title": p["title"], "url": f"https://{host}/products/{p['handle']}",
                         "price": float(v[0].get("price") or 0), "available": any(x.get("available") for x in v),
-                        "image": (p.get("images") or [{}])[0].get("src")})
+                        "image": (p.get("images") or [{}])[0].get("src"),
+                        "cat": cat_text(p.get("product_type"), p.get("vendor"), *(tags.split(",") if isinstance(tags, str) else tags))})
         return out
     yield from paged(page)
 
@@ -136,7 +143,8 @@ def woocommerce_page(host, query):
         pr = p.get("prices") or {}
         price = int(pr.get("price") or 0) / 10 ** int(pr.get("currency_minor_unit") or 0)
         out.append({"id": p["id"], "title": p["name"], "url": p["permalink"], "price": price,
-                    "available": bool(p.get("is_in_stock")), "image": (p.get("images") or [{}])[0].get("src")})
+                    "available": bool(p.get("is_in_stock")), "image": (p.get("images") or [{}])[0].get("src"),
+                    "cat": cat_text(*(c.get("name") for c in (p.get("categories") or []) + (p.get("tags") or []) + (p.get("brands") or [])))})
     return out
 
 
@@ -159,7 +167,8 @@ def jsonld_products(page_html, page_url=None):
                 img = img[0] if isinstance(img, list) and img else img
                 yield {"id": url, "title": p.get("name", ""), "url": url, "price": float(o.get("price") or o.get("lowPrice") or 0),
                        "available": "InStock" in str(o.get("availability")),
-                       "image": img.get("url") if isinstance(img, dict) else img}
+                       "image": img.get("url") if isinstance(img, dict) else img,
+                       "cat": cat_text(p.get("category"), (p.get("brand") or {}).get("name") if isinstance(p.get("brand"), dict) else p.get("brand"))}
 
 
 def tiendanube(host):
@@ -308,6 +317,8 @@ def merge(data, host, items, now):
         p = data["products"].setdefault(key, {"store": host, "history": [], "first_seen": now})
         p.update(title=title, url=it["url"], image=it.get("image"), price=it["price"],
                  available=it["available"], last_seen=now)
+        if it.get("cat"):  # not every platform has one; keep the last known
+            p["cat"] = it["cat"]
         last = p["history"][-1] if p["history"] else None
         if not last or last[1] != it["price"] or last[2] != it["available"]:
             p["history"].append([now, it["price"], it["available"]])
