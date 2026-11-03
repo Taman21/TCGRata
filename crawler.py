@@ -104,17 +104,27 @@ def discover(queries=QUERIES):
 
 
 # ---------- platform adapters: each yields dicts {id,title,url,price,available,image} ----------
+def paged(fetch_page, workers=4):
+    """Yield items of fetch_page(n) for n=1.., `workers` pages at a time; stop at the first empty page."""
+    with ThreadPoolExecutor(workers) as ex:
+        for start in range(1, MAX_PAGES, workers):
+            for items in list(ex.map(fetch_page, range(start, start + workers))):
+                if not items:
+                    return
+                yield from items
+            time.sleep(DELAY)
+
+
 def shopify(host):
-    for page in range(1, MAX_PAGES):
-        d = json.loads(fetch(f"https://{host}/products.json?limit=250&page={page}"))
-        if not d.get("products"):
-            return
-        for p in d["products"]:
+    def page(n):
+        out = []
+        for p in json.loads(fetch(f"https://{host}/products.json?limit=250&page={n}")).get("products", []):
             v = p.get("variants") or [{}]
-            yield {"id": p["id"], "title": p["title"], "url": f"https://{host}/products/{p['handle']}",
-                   "price": float(v[0].get("price") or 0), "available": any(x.get("available") for x in v),
-                   "image": (p.get("images") or [{}])[0].get("src")}
-        time.sleep(DELAY)
+            out.append({"id": p["id"], "title": p["title"], "url": f"https://{host}/products/{p['handle']}",
+                        "price": float(v[0].get("price") or 0), "available": any(x.get("available") for x in v),
+                        "image": (p.get("images") or [{}])[0].get("src")})
+        return out
+    yield from paged(page)
 
 
 def woocommerce_page(host, query):
@@ -130,11 +140,7 @@ def woocommerce_page(host, query):
 
 
 def woocommerce(host):
-    for page in range(1, MAX_PAGES):
-        if not (items := woocommerce_page(host, f"per_page=100&page={page}")):
-            return
-        yield from items
-        time.sleep(DELAY)
+    yield from paged(lambda n: woocommerce_page(host, f"per_page=100&page={n}"))
 
 
 def jsonld_products(page_html, page_url=None):
@@ -190,16 +196,21 @@ def odoo(host, search=""):
         time.sleep(DELAY)
 
 
-def sitemap_urls(host):
-    todo, urls = [f"https://{host}/sitemap.xml"], []
+def sitemap_entries(host):
+    """{url: lastmod or ""} from the sitemap tree."""
+    todo, urls = [f"https://{host}/sitemap.xml"], {}
     while todo and len(urls) < MAX_SITEMAP_URLS:
         try:
-            locs = re.findall(r"<loc>\s*(.*?)\s*</loc>", fetch(todo.pop()))
+            entries = re.findall(r"<loc>\s*(.*?)\s*</loc>(?:\s*<lastmod>\s*(.*?)\s*</lastmod>)?", fetch(todo.pop()))
         except Exception:
             continue
-        todo += [l for l in locs if l.endswith(".xml")]
-        urls += [html.unescape(l) for l in locs if not l.endswith(".xml")]
-    return urls[:MAX_SITEMAP_URLS]
+        todo += [l for l, _ in entries if l.endswith(".xml")]
+        urls.update((html.unescape(l), m) for l, m in entries if not l.endswith(".xml"))
+    return dict(list(urls.items())[:MAX_SITEMAP_URLS])
+
+
+def sitemap_urls(host):
+    return list(sitemap_entries(host))
 
 
 def page_products(url):
@@ -209,11 +220,24 @@ def page_products(url):
         return []
 
 
-def sitemap(host):
-    """Fallback for any platform (Jumpseller, custom...): visit every sitemap URL, keep pages with Product JSON-LD."""
-    with ThreadPoolExecutor(4) as ex:
-        for items in ex.map(page_products, sitemap_urls(host)):
-            yield from items
+def sitemap(host, seen):
+    """Fallback for any platform (Jumpseller, custom...): visit sitemap URLs, keep pages with Product JSON-LD.
+    `seen` {url: lastmod} is updated in place; URLs whose lastmod is unchanged since the last crawl are skipped.
+    ponytail: trusts lastmod; a store that doesn't bump it on price/stock edits stays stale, add a periodic full pass if seen."""
+    entries = sitemap_entries(host)
+    todo = [u for u, m in entries.items() if not m or seen.get(u) != m]
+
+    def visit(u):
+        try:
+            return u, list(jsonld_products(fetch(u), u))
+        except Exception:
+            return u, None  # failed: leave unrecorded so it's retried next run
+
+    with ThreadPoolExecutor(8) as ex:
+        for u, items in ex.map(visit, todo):
+            if items is not None:
+                seen[u] = entries[u]
+                yield from items
 
 
 def detect(host):
@@ -267,13 +291,13 @@ ADAPTERS = {"shopify": shopify, "woocommerce": woocommerce, "tiendanube": tienda
 
 
 # ---------- crawl ----------
-def crawl_store(host, platform):
-    items = []
+def crawl_store(host, platform, lastmod):
+    items, t0 = [], time.time()
     try:
-        items.extend(ADAPTERS[platform](host))
-        return host, items, None
+        items.extend(sitemap(host, lastmod) if platform == "sitemap" else ADAPTERS[platform](host))
+        return host, items, None, time.time() - t0
     except Exception as e:  # keep what we got; products not seen this run just keep their old last_seen
-        return host, items, f"{type(e).__name__}: {e}"
+        return host, items, f"{type(e).__name__}: {e}", time.time() - t0
 
 
 def merge(data, host, items, now):
@@ -323,14 +347,22 @@ def main():
     if query:
         return search_all(data, query, now)
     print(f"Crawleando {len(stores)} tiendas...")
+    t0 = last_save = time.time()
     with ThreadPoolExecutor(8) as ex:
-        for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"]) for h in stores]):
-            host, items, err = fut.result()
-            stores[host].update(last_crawl=now, count=len(items), error=err)
+        for fut in as_completed([ex.submit(crawl_store, h, stores[h]["platform"], stores[h].setdefault("lastmod", {})
+                                           if stores[h]["platform"] == "sitemap" else None) for h in stores]):
+            host, items, err, secs = fut.result()
+            stores[host].update(last_crawl=now, count=len(items), error=err, secs=round(secs, 1))
             merge(data, host, items, now)
-            print(f"  {host}: {len(items)} productos" + (f" (error: {err})" if err else ""))
-            DATA.write_text(json.dumps(data, ensure_ascii=False), "utf-8")  # save per store: a killed run keeps its progress
+            print(f"  {host}: {len(items)} productos en {secs:.0f}s" + (f" (error: {err})" if err else ""))
+            if time.time() - last_save > 60:  # dumping ~150 MB per store dominated runtime; a killed run loses <=1 min
+                DATA.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+                last_save = time.time()
+    DATA.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
 
+    slow = sorted(stores.items(), key=lambda kv: -kv[1].get("secs", 0))[:5]
+    print(f"Total {time.time() - t0:.0f}s. Mas lentas: " + ", ".join(f"{h} {s['secs']:.0f}s" for h, s in slow))
+    print("Con error: " + (", ".join(h for h, s in stores.items() if s.get("error")) or "ninguna"))
     build_report(data)
 
 
