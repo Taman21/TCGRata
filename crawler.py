@@ -38,8 +38,13 @@ MAX_PAGES = 400
 MAX_SITEMAP_URLS = 6000  # ponytail: caps slow page-by-page stores; raise if a big store gets truncated
 
 
+FLAKY = set()  # hosts that timed out in the previous crawl: they get a short leash so a blocked store costs ~30 s, not minutes
+
+
 def fetch(url, timeout=25, tries=4, headers=None):
     """GET with backoff on 429/5xx/timeouts. Raises after the last try so callers never mistake an error for 'no more pages'."""
+    if urllib.parse.urlparse(url).netloc in FLAKY:
+        timeout, tries = 12, 2
     for i in range(tries):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers={**UA, **(headers or {})}), timeout=timeout) as r:
@@ -437,6 +442,9 @@ def main():
     if query:
         return search_all(data, query, now)
     print(f"Crawleando {len(stores)} tiendas...")
+    FLAKY.update(h for h, s in stores.items() if s.get("fails") and str(s.get("error")).startswith("URLError"))  # back to normal after one clean crawl (fails resets)
+    if FLAKY:
+        print("Con correa corta (timeout previo): " + ", ".join(sorted(FLAKY)))
     known = Counter(p["store"] for p in data["products"].values())
     t0 = last_save = time.time()
     hot = {}  # per sitemap store: {product id (its URL): looks like Pokemon}, from what earlier crawls found

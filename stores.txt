@@ -57,7 +57,7 @@ www.vudugaming.cl
 www.magic-chile.cl  # auto 2026-10-06
 www.littletoys.cl  # auto 2026-10-06
 www.peluchespokemon.cl  # auto 2026-10-06
-www.updown.cl  # auto 2026-10-06
+# www.updown.cl  (403 en API y paginas desde GitHub Actions el 2026-11-03; tienda general, solo parte TCG)
 themulligan.cl  # auto 2026-10-06
 www.deckscards.cl  # auto 2026-10-06
 filecity.cl  # auto 2026-10-06
