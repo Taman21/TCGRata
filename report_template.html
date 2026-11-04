@@ -135,7 +135,11 @@
   footer summary { cursor:pointer; font-weight:600; color:var(--ink); }
   .stores { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:4px 24px; margin:14px 0 0; padding:0; list-style:none; }
   .stores li { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:5px 0; }
-  .rel { list-style:none; margin:0; padding:0; display:grid; gap:.4rem; } .rel a { display:block; padding:.5rem .7rem; border:1px solid var(--line, #ddd); border-radius:8px; text-decoration:none; color:inherit; }
+  .pdp-top.has-rel { grid-template-columns:minmax(260px, 460px) 1fr 320px; }
+  .rel { display:grid; gap:8px; } .rel h2 { margin:0 0 2px; font-size:18px; }
+  .rel a { display:flex; gap:16px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:12px; text-decoration:none; color:inherit; }
+  .rel a:hover { background:var(--plate); } .rel img, .rel .ph { width:84px; height:116px; object-fit:contain; background:var(--plate); border-radius:8px; flex:none; mix-blend-mode:multiply; }
+  .rel a > span { display:grid; line-height:1.3; min-width:0; } .rel a b { font-size:16px; } .rel small { font-size:15px; }
   .stores .stale { color:#b3261e; font-weight:600; }
 
   /* product page */
@@ -144,7 +148,7 @@
   .crumbs { margin-bottom:20px; font-size:14px; }
   .crumbs a { color:var(--gold-d); text-decoration:underline; text-underline-offset:3px; }
   .pdp-top { display:grid; grid-template-columns:minmax(260px, 460px) 1fr; gap:44px; align-items:start; }
-  .pdp-img { background:var(--plate); border-radius:18px; aspect-ratio:1/1; display:grid; place-items:center; overflow:hidden; position:sticky; top:84px; }
+  .pdp-img { background:var(--plate); border-radius:18px; aspect-ratio:1/1; display:grid; place-items:center; overflow:hidden; }
   .pdp-img img { width:100%; height:100%; object-fit:contain; padding:16px; mix-blend-mode:multiply; }
   .pdp-info h1 { margin:8px 0 10px; font-size:clamp(24px, 3.2vw, 36px); line-height:1.12; letter-spacing:-.02em; max-width:none; }
   .badges.inline { position:static; max-width:none; }
@@ -186,7 +190,7 @@
   .spark .line { fill:none; stroke:var(--gold-d); stroke-width:1.6; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
   .vchips { margin-top:12px; }
   @media (max-width:900px) {
-    .pdp-top { grid-template-columns:1fr; gap:22px; }
+    .pdp-top, .pdp-top.has-rel { grid-template-columns:1fr; gap:22px; }
     .pdp-img { position:static; max-width:440px; }
   }
   @media (max-width:700px) {            /* phones: store, price, data age and the button; the comparison columns live on desktop */
@@ -583,7 +587,7 @@ function detailView(g, rel = []) {
   const stat = (k, v) => h('div', {}, h('dt', {}, k), h('dd', {}, v));
   return h('article', { className: 'pdp' },
     h('nav', { className: 'crumbs', 'aria-label': 'Ruta' }, h('a', { href: backHash || '#' }, 'Volver a los resultados')),
-    h('div', { className: 'pdp-top' },
+    h('div', { className: 'pdp-top' + (rel.length ? ' has-rel' : '') },
       h('div', { className: 'pdp-img' }, g.i ? h('img', { src: g.i, alt: g.t }) : h('span', { className: 'mut' }, 'Sin imagen')),
       h('div', { className: 'pdp-info' },
         h('div', { className: 'tags', style: 'margin-top:0' }, h('span', {}, index.labels[g.game]), g.l ? h('span', {}, LANG[g.l]) : null, h('span', {}, KIND[g.k])),
@@ -599,13 +603,14 @@ function detailView(g, rel = []) {
           stat('Precio más bajo registrado', loAt ? `${clp(lo)} el ${fmtDay(dayMs(loAt[0]))}` : clp(lo)),
           stat('Ofertas', `${live.length} con stock de ${g.o.length}`),
           dear ? stat('Precio más alto con stock', clp(dear)) : null,
-          stat('Lo seguimos desde', fmtDay(new Date(g.f)))))),
+          stat('Lo seguimos desde', fmtDay(new Date(g.f))))),
+      rel.length ? h('aside', { className: 'rel', 'aria-label': 'Otros idiomas' }, h('h2', {}, 'Otros idiomas'),
+        ...rel.map(r => h('a', { href: detailHref(r) },
+          r.i ? h('img', { src: r.i, alt: '', loading: 'lazy' }) : h('span', { className: 'ph' }),
+          h('span', {}, h('b', {}, LANG[r.l] || 'Idioma no indicado'), h('small', { className: 'mut' }, r.live ? `desde ${clp(r.price)}` : 'agotado'))))) : null),
     h('section', { className: 'pdp-sec' }, h('h2', {}, 'Historial del precio'),
       g.h ? [h('p', { className: 'mut' }, `Precio más bajo entre las tiendas con stock, desde ${fmtDay(dayMs(g.h[0][0]))}. Pasa el cursor por el gráfico para ver cada día.`), bigChart(g)]
         : h('p', { className: 'mut' }, `Este producto no ha cambiado de precio desde que lo seguimos (${fmtDay(new Date(g.f))}).`)),
-    rel.length ? h('section', { className: 'pdp-sec' }, h('h2', {}, 'Mismo producto en otros idiomas'),
-      h('ul', { className: 'rel' }, ...rel.map(r => h('li', {}, h('a', { href: detailHref(r) }, h('b', {}, LANG[r.l] || 'Idioma no indicado'), ' ', r.t,
-        h('span', { className: 'mut' }, r.live ? ` · desde ${clp(r.price)}` : ' · agotado')))))) : null,
     h('section', { className: 'pdp-sec' }, h('h2', {}, 'Dónde comprar'), vchips,
       h('div', { className: 'tablewrap' }, h('table', { className: 'offers' },
         h('thead', {}, h('tr', {}, ...[['Tienda', ''], ['Precio', 'num'], ['Frente al más barato', 'num'], ['Historial', ''], ['Dato de', ''], ['', '']].map(([t, c]) => h('th', { scope: 'col', className: c }, t)))),
@@ -621,7 +626,7 @@ async function renderDetail() {
     try {
       const all = await loadShard(state.pg, state.pb);
       g = all.find(x => x.x === state.p);
-      if (g?.n) rel = all.filter(x => x.n === g.n && x !== g);
+      if (g?.rl) rel = all.filter(x => x.rl === g.rl && x !== g && x.l !== g.l).sort((a, b) => b.live - a.live || a.price - b.price).slice(0, 5);
     } catch { /* shown as not found below */ }
   }
   if (mine !== token) return;                                // the user already went elsewhere

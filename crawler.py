@@ -359,13 +359,15 @@ def crawl_store(host, platform, lastmod, hot=None, rot=0, store=None):
             err = f"{type(e).__name__}: {e}"
         if not err or items or err.startswith("URLError"):  # retry once only when nothing came back; fetch() already retried timeouts 4x, a second round is minutes wasted
             break
-    if err and not items and store is not None and platform != "sitemap" and re.match(r"HTTPError: HTTP Error 40[34]", err):
-        try:  # the API is closed to us (e.g. a security plugin on /wp-json) but the public pages may not be: read the sitemap instead
-            items = list(sitemap(host, store.setdefault("lastmod", {})))
+    if err and not items and store is not None and platform != "sitemap" and re.match(r"HTTPError: HTTP Error 40[034]", err):
+        new = detect(host)[0]  # the API is gone: the store changed platform (progaming.cl: Woo -> Shopify) or closed /wp-json but its pages still answer
+        try:
+            if new and new != platform:
+                items = list(sitemap(host, store.setdefault("lastmod", {})) if new == "sitemap" else ADAPTERS[new](host))
         except Exception:
             items = []
         if items:
-            err, store["platform"] = None, "sitemap"  # stays on sitemap from now on
+            err, store["platform"] = None, new  # stays on the new platform from now on
     return host, items, err, time.time() - t0
 
 
