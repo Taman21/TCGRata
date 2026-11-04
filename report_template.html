@@ -308,8 +308,8 @@ function expand(phrase) {                                     // one pass: swap 
   return out;
 }
 const LANG = { es: 'Español', en: 'Inglés', ja: 'Japonés', ko: 'Coreano', zh: 'Chino', fr: 'Francés', de: 'Alemán', it: 'Italiano', pt: 'Portugués', multi: 'Varios idiomas' };
-const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', accesorio: 'Accesorio', otro: 'Otro' };
-const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['other', 'Accesorios y otros'], ['', 'Todo']];
+const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundle: 'Bundle', blister: 'Blister', tin: 'Tin', sobre: 'Sobre', coleccion: 'Colección', accesorio: 'Accesorio', figura: 'Figura', otro: 'Otro' };
+const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['accesorio', 'Accesorios'], ['figura', 'Figuras'], ['other', 'Otros'], ['', 'Todo']];
 const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
   drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
 const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '', p: '', pg: '', pb: '' };   // p/pg/pb: product page (group id, game, bucket)
@@ -373,7 +373,7 @@ function prep(g, game, b) {
 }
 async function groupsFor(s, onProgress) {
   const games = s.game ? [s.game] : Object.keys(index.games);
-  const buckets = s.type ? [s.type] : ['sealed', 'single', 'other'];
+  const buckets = s.type ? [s.type] : ['sealed', 'single', 'accesorio', 'figura', 'other'];
   const jobs = s.fav ? [...new Set(Object.values(favs).map(v => v.join('|')))].map(v => v.split('|')).filter(([g, b]) => index.games[g]?.[b])
     : games.flatMap(g => buckets.filter(b => index.games[g]?.[b]).map(b => [g, b]));
   let done = 0;
@@ -661,7 +661,7 @@ function syncControls() {
     b.setAttribute('aria-pressed', String(b.dataset.v === state.game));
   }
   for (const box of [$('f-type'), $('f-lang')]) for (const b of box.children) b.setAttribute('aria-pressed', String(b.dataset.v === state[box.dataset.key]));
-  const kinds = state.type === 'sealed' ? ['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion'] : state.type === 'other' ? ['accesorio', 'otro'] : [];
+  const kinds = state.type === 'sealed' ? ['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion'] : [];
   $('f-kind-box').hidden = !kinds.length;
   $('f-kind').replaceChildren(new Option('Todos', ''), ...kinds.map(k => new Option(KIND[k], k)));
   $('f-kind').value = state.kind;

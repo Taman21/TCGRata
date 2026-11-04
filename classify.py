@@ -47,8 +47,9 @@ VARIANTS = [(v, re.compile(rx)) for v, rx in [
 ]]
 # First match wins (ported from the page). Strong single signals, accessories, sealed kinds, then weak single signals.
 KINDS = [(k, re.compile(rx)) for k, rx in [
-    ("single", r"\b\d{1,3}/\d{2,3}\b(?!/)|\b[a-z]{2,4}\d{1,2}-\d{3}\b|#\d+|\((?:alternate art|alt art|parallel|full art)\)|\b(?:psa|bgs|cgc) ?\d|reverse holo|\[holo\]"),
-    ("accesorio", r"sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b|peluche|figura|funko|llavero|rompecabezas|puzzle|polera|\btaza\b|mochila|stickers?|bolso"),
+    ("single", r"\b\d{1,3}/\d{2,3}\b(?!/)|\b[a-z]{2,4}\d{1,2}-\d{3}\b|#\d+|\((?:alternate art|alt art|parallel|full art)\)|\b(?:psa|bgs|cgc) ?\d|reverse holo|\[holo\]|\[[a-z0-9]{2,5} - \d{1,3}\]|- \d{1,3} - (?:common|uncommon|rare|mythic)\b|\((?:ingles|english|espanol)\) \d{3}\b"),
+    ("figura", r"figuarts|nendoroid|\bfigma\b|gach?apon|gashapon|\bfunko\b|\bfigura|estatua|statue|peluche|miniaturas?\b|llavero"),
+    ("accesorio", r"dragon shield|pintura|\bteclado|memoria ram|audifonos|\bmarcador|sleeves|\bmicas?\b|protectores|deck ?box|portamazo|playmat|tapete|toploader|top loader|carpeta|\balbum\b|\bbinder\b(?! collection)|\bdados\b|\bfundas?\b|rompecabezas|puzzle|polera|\btaza\b|mochila|stickers?|bolso"),
     ("booster box", r"booster box|\bdisplay\b|caja de sobres|caja de boosters|36 sobres"),
     ("etb", r"elite trainer|\betb\b|entrenador de elite"),
     ("bundle", r"bundle"), ("blister", r"blister|checklane|\d-pack"), ("tin", r"\btin\b|\blata\b"),
@@ -134,7 +135,7 @@ def classify_all(products):
             per[products[k]["store"]][i["game"]] += 1
     default = {s: c.most_common(1)[0][0] for s, c in per.items() if sum(c.values()) >= 500 and c.most_common(1)[0][1] >= .97 * sum(c.values())}
     for k, i in info.items():
-        if not i["game"] and i["kind"] not in ("accesorio", "otro") and products[k]["store"] in default:
+        if not i["game"] and i["kind"] not in ("accesorio", "figura", "otro") and products[k]["store"] in default:
             i["game"], i["src"] = default[products[k]["store"]], "store"
     for i in info.values():
         if i["kind"] == "otro" and i["game"]:  # a bare card name (Magic: "Counterspell") in a known game, with no sealed/accessory signal
@@ -144,7 +145,7 @@ def classify_all(products):
 
 
 def bucket(kind):
-    return {"single": "single", "accesorio": "other", "otro": "other"}.get(kind, "sealed")
+    return {"single": "single", "accesorio": "accesorio", "figura": "figura", "otro": "other"}.get(kind, "sealed")
 
 
 def build_groups(products, store_id):

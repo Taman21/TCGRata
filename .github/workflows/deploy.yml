@@ -1,0 +1,31 @@
+name: deploy
+
+# Cambios de UI/clasificacion salen al sitio sin crawlear: reusa el estado del release y solo regenera site/.
+on:
+  push:
+    branches: [main]
+    paths: [report_template.html, classify.py, aliases.json, crawler.py]
+  workflow_dispatch:
+
+concurrency: crawl  # mismo grupo que el crawl: no pisa su deploy
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: gh release download data -p data.json.gz && gunzip data.json.gz
+      - run: python -u crawler.py --report
+      - if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx --yes wrangler@3 pages deploy site --project-name tcgrata --branch main
