@@ -148,6 +148,11 @@ def bucket(kind):
     return {"single": "single", "accesorio": "accesorio", "figura": "figura", "otro": "other"}.get(kind, "sealed")
 
 
+def store_of(p):
+    """Marketplace listings count as the seller's own store: 'tcgmatch.cl/danrab'."""
+    return p["store"] + "/" + p["seller"] if p.get("seller") else p["store"]
+
+
 def build_groups(products, store_id):
     """-> {(game, bucket): [group]}. One group = one product across stores; offers cheapest (in stock) first.
     Compact keys for the page: t title, k kind, l language, i image, f first seen, o offers.
@@ -155,7 +160,7 @@ def build_groups(products, store_id):
     info = classify_all(products)
     members = collections.defaultdict(list)
     for pid, p in products.items():
-        if p["price"] > 0 and p["store"] in store_id:
+        if p["price"] > 0 and store_of(p) in store_id:
             members[info[pid]["key"]].append((p, info[pid]))
     out = collections.defaultdict(list)
     for key, ms in members.items():
@@ -163,8 +168,8 @@ def build_groups(products, store_id):
         for p, i in sorted(ms, key=lambda m: (not m[0]["available"], m[0]["price"])):
             prev = next((h[1] for h in reversed(p["history"]) if h[1] != p["price"]), 0)
             host = "https://" + p["store"]
-            o = {"s": store_id[p["store"]], "p": round(p["price"]), "a": int(p["available"]),
-                 "u": p["url"][len(host):] if p["url"].startswith(host + "/") else p["url"]}
+            o = {"s": store_id[store_of(p)], "p": round(p["price"]), "a": int(p["available"]),
+                 "u": p["url"][len(host):] if p["url"].startswith(host + "/") and not p.get("seller") else p["url"]}
             if i["variant"]:
                 o["v"] = i["variant"]
             if prev > p["price"]:
