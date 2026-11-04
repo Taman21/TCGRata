@@ -162,7 +162,7 @@ def build_groups(products, store_id):
     for pid, p in products.items():
         if p["price"] > 0 and store_of(p) in store_id:
             members[info[pid]["key"]].append((p, info[pid]))
-    out = collections.defaultdict(list)
+    out, names = collections.defaultdict(list), collections.defaultdict(list)
     for key, ms in members.items():
         offers, image = [], None
         for p, i in sorted(ms, key=lambda m: (not m[0]["available"], m[0]["price"])):
@@ -191,6 +191,11 @@ def build_groups(products, store_id):
         if hist := price_history(ms):
             g["h"] = hist
         out[(game, bucket(kind))].append(g)
+        names[key.rsplit("|", 1)[0]].append(g)  # same product ignoring language
+    for gs in names.values():  # "n" only where another language of the same product exists, so the page can cross-link them
+        if len({g["l"] for g in gs}) > 1:
+            for g in gs:
+                g["n"] = gs[0]["x"][:6]
     return out
 
 
@@ -272,6 +277,11 @@ def test():
     assert g["pv"] == 1 and len(g["x"]) == 10 and len(g["o"]) == 2, g
     by_store = {o["s"]: o for o in g["o"]}
     assert by_store[0]["h"] == [[d("2026-10-01"), 100], [d("2026-10-05"), 80]] and "h" not in by_store[1], by_store  # per-offer history only if it moved
+    # same product in two languages cross-links via "n"; a lone language gets none
+    lp = {str(i): {**base, "title": t, "history": [], "url": f"https://a/{i}"} for i, t in enumerate(
+        ["Pokemon Booster Box Foo Inglés", "Pokemon Booster Box Foo Español", "Pokemon Booster Box Bar Español"])}
+    gs = next(iter(build_groups(lp, {"a": 0}).values()))
+    assert sorted(bool(g.get("n")) for g in gs) == [False, True, True] and len({g.get("n") for g in gs} - {None}) == 1, gs
     print("ok")
 
 

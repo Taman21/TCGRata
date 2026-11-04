@@ -135,6 +135,7 @@
   footer summary { cursor:pointer; font-weight:600; color:var(--ink); }
   .stores { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:4px 24px; margin:14px 0 0; padding:0; list-style:none; }
   .stores li { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding:5px 0; }
+  .rel { list-style:none; margin:0; padding:0; display:grid; gap:.4rem; } .rel a { display:block; padding:.5rem .7rem; border:1px solid var(--line, #ddd); border-radius:8px; text-decoration:none; color:inherit; }
   .stores .stale { color:#b3261e; font-weight:600; }
 
   /* product page */
@@ -555,7 +556,7 @@ function bigChart(g) {                                       // lowest in-stock 
   return h('div', { className: 'bigchart' }, svg, out);
 }
 
-function detailView(g) {
+function detailView(g, rel = []) {
   const best = g.best, live = g.o.filter(o => o.a);
   const dear = live.length > 1 ? Math.max(...live.map(o => o.p)) : 0, save = dear - g.price;
   const lo = Math.min(g.price, ...(g.h || []).map(p => p[1])), loAt = g.h?.find(p => p[1] === lo);
@@ -602,6 +603,9 @@ function detailView(g) {
     h('section', { className: 'pdp-sec' }, h('h2', {}, 'Historial del precio'),
       g.h ? [h('p', { className: 'mut' }, `Precio más bajo entre las tiendas con stock, desde ${fmtDay(dayMs(g.h[0][0]))}. Pasa el cursor por el gráfico para ver cada día.`), bigChart(g)]
         : h('p', { className: 'mut' }, `Este producto no ha cambiado de precio desde que lo seguimos (${fmtDay(new Date(g.f))}).`)),
+    rel.length ? h('section', { className: 'pdp-sec' }, h('h2', {}, 'Mismo producto en otros idiomas'),
+      h('ul', { className: 'rel' }, ...rel.map(r => h('li', {}, h('a', { href: detailHref(r) }, h('b', {}, LANG[r.l] || 'Idioma no indicado'), ' ', r.t,
+        h('span', { className: 'mut' }, r.live ? ` · desde ${clp(r.price)}` : ' · agotado')))))) : null,
     h('section', { className: 'pdp-sec' }, h('h2', {}, 'Dónde comprar'), vchips,
       h('div', { className: 'tablewrap' }, h('table', { className: 'offers' },
         h('thead', {}, h('tr', {}, ...[['Tienda', ''], ['Precio', 'num'], ['Frente al más barato', 'num'], ['Historial', ''], ['Dato de', ''], ['', '']].map(([t, c]) => h('th', { scope: 'col', className: c }, t)))),
@@ -612,9 +616,13 @@ async function renderDetail() {
   const mine = ++token, box = $('detail');
   scrollTo(0, 0);
   box.replaceChildren(h('div', { className: 'status' }, 'Cargando producto…'));
-  let g = null;
+  let g = null, rel = [];
   if (index.games[state.pg]?.[state.pb]) {
-    try { g = (await loadShard(state.pg, state.pb)).find(x => x.x === state.p); } catch { /* shown as not found below */ }
+    try {
+      const all = await loadShard(state.pg, state.pb);
+      g = all.find(x => x.x === state.p);
+      if (g?.n) rel = all.filter(x => x.n === g.n && x !== g);
+    } catch { /* shown as not found below */ }
   }
   if (mine !== token) return;                                // the user already went elsewhere
   if (!g) {
@@ -624,7 +632,7 @@ async function renderDetail() {
     return;
   }
   document.title = `${g.t} - TCGRata`;
-  box.replaceChildren(detailView(g));
+  box.replaceChildren(detailView(g, rel));
 }
 
 async function route() {

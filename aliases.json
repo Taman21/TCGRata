@@ -51,7 +51,7 @@
     ["dragon ball", "dragonball"]
   ],
   "_search_ayuda": "Grupos de terminos equivalentes (en minusculas, sin tildes ni signos). Si buscas uno, la pagina tambien busca los otros. Agrega aqui los nombres en español/ingles de sets o cartas.",
-  "phrases": {
+  "phrases": {"escarlata y purpura": "scarlet violet", "megaevolucion": "mega evolution", "megaevoluciones": "mega evolution", "mega evolutions": "mega evolution", "llama blanca": "white flare", "caos creciente": "chaos rising", "orden perfecto": "perfect order", "30 aniversario": "30th celebration", "30o aniversario": "30th celebration", "evoluciones prismaticas": "prismatic evolutions", "fabula sombria": "shrouded fable", "mascarada crepuscular": "twilight masquerade", "chispas fulgurantes": "surging sparks", "fuerzas temporales": "temporal forces", "destinos de paldea": "paldean fates", "llamas obsidianas": "obsidian flames", "evoluciones en paldea": "paldea evolved", "fisura paradoja": "paradox rift", "heroes excelsos": "ascended heroes", "llamas fantasmales": "phantasmal flames", "corona estelar": "stellar crown", "aventuras juntos": "journey together", "rivales destinados": "destined rivals", "reinado glacial": "chilling reign", "estilos de combate": "battle styles", "cielos evolutivos": "evolving skies", "origen perdido": "lost origin", "tempestad plateada": "silver tempest", "cenit supremo": "crown zenith", "eclipse cosmico": "cosmic eclipse", 
     "elite trainer box": "etb",
     "caja de entrenador de elite": "etb",
     "entrenador de elite": "etb",
