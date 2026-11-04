@@ -11,6 +11,7 @@ DIR = Path(__file__).parent
 CFG = json.loads((DIR / "aliases.json").read_text("utf-8"))
 GAMES = {g: re.compile(v["keywords"]) for g, v in CFG["games"].items()}  # dict order = priority
 DROP = set(CFG["drop"])
+MARKET = set(CFG.get("marketplaces", []))  # peer-to-peer marketplaces: their own buckets ("single@m"), never mixed into the stores' price comparison
 PHRASES = CFG["phrases"]
 PHRASE_RX = re.compile(r"\b(?:%s)\b" % "|".join(re.escape(p) for p in sorted(PHRASES, key=len, reverse=True)))
 
@@ -148,11 +149,6 @@ def bucket(kind):
     return {"single": "single", "accesorio": "accesorio", "figura": "figura", "otro": "other"}.get(kind, "sealed")
 
 
-def store_of(p):
-    """Marketplace listings count as the seller's own store: 'tcgmatch.cl/danrab'."""
-    return p["store"] + "/" + p["seller"] if p.get("seller") else p["store"]
-
-
 def build_groups(products, store_id):
     """-> {(game, bucket): [group]}. One group = one product across stores; offers cheapest (in stock) first.
     Compact keys for the page: t title, k kind, l language, i image, f first seen, o offers.
@@ -160,16 +156,16 @@ def build_groups(products, store_id):
     info = classify_all(products)
     members = collections.defaultdict(list)
     for pid, p in products.items():
-        if p["price"] > 0 and store_of(p) in store_id:
-            members[info[pid]["key"]].append((p, info[pid]))
+        if p["price"] > 0 and p["store"] in store_id:
+            members[(p["store"] in MARKET, info[pid]["key"])].append((p, info[pid]))
     out, names = collections.defaultdict(list), collections.defaultdict(list)
-    for key, ms in members.items():
+    for (market, key), ms in members.items():
         offers, image = [], None
         for p, i in sorted(ms, key=lambda m: (not m[0]["available"], m[0]["price"])):
             prev = next((h[1] for h in reversed(p["history"]) if h[1] != p["price"]), 0)
             host = "https://" + p["store"]
-            o = {"s": store_id[store_of(p)], "p": round(p["price"]), "a": int(p["available"]),
-                 "u": p["url"][len(host):] if p["url"].startswith(host + "/") and not p.get("seller") else p["url"]}
+            o = {"s": store_id[p["store"]], "p": round(p["price"]), "a": int(p["available"]),
+                 "u": p["url"][len(host):] if p["url"].startswith(host + "/") else p["url"]}
             if i["variant"]:
                 o["v"] = i["variant"]
             if prev > p["price"]:
@@ -190,8 +186,8 @@ def build_groups(products, store_id):
             g["pv"] = 1
         if hist := price_history(ms):
             g["h"] = hist
-        out[(game, bucket(kind))].append(g)
-        names[key.rsplit("|", 1)[0]].append(g)  # same product ignoring language
+        out[(game, bucket(kind) + "@m" * market)].append(g)
+        names[(market, key.rsplit("|", 1)[0])].append(g)  # same product ignoring language
     for gs in names.values():  # "rl" only where another language of the same product exists, so the page can cross-link them
         if len({g["l"] for g in gs}) > 1:
             for g in gs:
@@ -282,6 +278,11 @@ def test():
         ["Pokemon Booster Box Foo Inglés", "Pokemon Booster Box Foo Español", "Pokemon Booster Box Bar Español"])}
     gs = next(iter(build_groups(lp, {"a": 0}).values()))
     assert sorted(bool(g.get("rl")) for g in gs) == [False, True, True] and len({g.get("rl") for g in gs} - {None}) == 1, gs
+    # a marketplace's listing never joins a store's group: it gets its own "@m" bucket
+    mp = {"1": {**base, "title": "Pokemon Booster Box Foo", "history": [], "url": "https://a/1"},
+          "2": {**base, "title": "Pokemon Booster Box Foo", "store": next(iter(MARKET)), "history": [], "url": f"https://{next(iter(MARKET))}/2"}}
+    sh = build_groups(mp, {"a": 0, next(iter(MARKET)): 1})
+    assert {b: len(g[0]["o"]) for (_, b), g in sh.items()} == {"sealed": 1, "sealed@m": 1}, sh
     print("ok")
 
 

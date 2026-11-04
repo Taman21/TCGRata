@@ -256,6 +256,7 @@
 
 <div class="wrap layout">
   <aside class="rail" id="rail" aria-label="Filtros">
+    <div><h2>Fuente</h2><div class="seg" id="f-src"></div></div>
     <div><h2>Tipo</h2><div class="seg" id="f-type"></div></div>
     <div id="f-kind-box" hidden><h2>Formato</h2><select id="f-kind" aria-label="Formato"></select></div>
     <div><h2>Idioma</h2><div class="seg" id="f-lang"></div></div>
@@ -317,7 +318,8 @@ const KIND = { single: 'Single', 'booster box': 'Booster Box', etb: 'ETB', bundl
 const TYPES = [['sealed', 'Sellado'], ['single', 'Singles'], ['accesorio', 'Accesorios'], ['figura', 'Figuras'], ['other', 'Otros'], ['', 'Todo']];
 const SORTS = { stores: (a, b) => b.n - a.n || a.price - b.price, price: (a, b) => a.price - b.price, '-price': (a, b) => b.price - a.price,
   drop: (a, b) => b.drop - a.drop, new: (a, b) => b.t_new.localeCompare(a.t_new), title: (a, b) => a.t.localeCompare(b.t) };
-const DEFAULT = { game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '', p: '', pg: '', pb: '' };   // p/pg/pb: product page (group id, game, bucket)
+const SRC = [['', 'Tiendas'], ['m', 'Marketplace']];     // marketplace (TCGmatch) buckets are "<bucket>@m": never mixed into the stores' comparison
+const DEFAULT = { src: '', game: '', type: 'sealed', lang: '', kind: '', store: '', min: '', max: '', stock: '1', sort: 'stores', q: __QUERY__, fav: '', drop: '', pre: '', p: '', pg: '', pb: '' };   // p/pg/pb: product page (group id, game, bucket)
 const TITLE = document.title;
 
 // Favorites live in this browser only: id -> [game, bucket], so a favorites view loads just the shards it needs.
@@ -378,7 +380,8 @@ function prep(g, game, b) {
 }
 async function groupsFor(s, onProgress) {
   const games = s.game ? [s.game] : Object.keys(index.games);
-  const buckets = s.type ? [s.type] : ['sealed', 'single', 'accesorio', 'figura', 'other'];
+  const sfx = s.src ? '@m' : '';
+  const buckets = (s.type ? [s.type] : ['sealed', 'single', 'accesorio', 'figura', 'other']).map(b => b + sfx);
   const jobs = s.fav ? [...new Set(Object.values(favs).map(v => v.join('|')))].map(v => v.split('|')).filter(([g, b]) => index.games[g]?.[b])
     : games.flatMap(g => buckets.filter(b => index.games[g]?.[b]).map(b => [g, b]));
   let done = 0;
@@ -412,7 +415,7 @@ async function render(resetPage = true) {
   const alts = [...phrases].map(p => p.split(' '));
   const extra = [...phrases].filter(p => !asked.includes(p));
   $('also').textContent = extra.length ? `También busca: ${extra.join(', ')}` : '';
-  const pending = !cache.has(`${state.game}.${state.type}`) || !state.game || !state.type;
+  const pending = !cache.has(`${state.game}.${state.type}${state.src ? '@m' : ''}`) || !state.game || !state.type;
   if (pending) {
     out.replaceChildren(h('div', { className: 'grid', 'aria-hidden': 'true' }, ...Array.from({ length: 8 }, () => h('div', { className: 'skeleton' }))));
     $('count').textContent = 'Cargando…';
@@ -657,13 +660,15 @@ function seg(box, items, key) {
     state[key] = v; if (key === 'type') state.kind = ''; render(); } })));
   [...box.children].forEach((b, i) => b.dataset.v = items[i][0]);
 }
-const gameTotal = g => Object.entries(index.games[g] || {}).filter(([b]) => !state.type || b === state.type).reduce((n, [, v]) => n + v.groups, 0);
+const inSrc = b => b.endsWith('@m') === !!state.src;
+const gameTotal = g => Object.entries(index.games[g] || {}).filter(([b]) => inSrc(b) && (!state.type || b.replace('@m', '') === state.type)).reduce((n, [, v]) => n + v.groups, 0);
 function buildTabs() {
-  const all = g => Object.values(index.games[g]).reduce((n, v) => n + v.groups, 0);
+  const all = g => Object.values(index.games[g]).reduce((n, v) => n + v.groups, 0);   // order tabs by size across both sources, stable when toggling
   const games = Object.keys(index.games).sort((a, b) => (a === 'otros') - (b === 'otros') || all(b) - all(a));
   $('tabs').replaceChildren(...[['', 'Todos'], ...games.map(g => [g, index.labels[g] || g])].map(([v, label]) =>
     h('button', { className: 'tab', type: 'button', onclick: () => { state.game = v; render(); } }, label, h('small'))));
   [...$('tabs').children].forEach((b, i) => b.dataset.v = i ? games[i - 1] : '');
+  seg($('f-src'), SRC, 'src');
   seg($('f-type'), TYPES, 'type');
   seg($('f-lang'), [['', 'Todos'], ['es', 'Español'], ['en', 'Inglés'], ['ja', 'Japonés'], ['none', 'Sin idioma']], 'lang');
 }
@@ -673,7 +678,7 @@ function syncControls() {
     b.hidden = !n; b.lastChild.textContent = n.toLocaleString('es-CL');
     b.setAttribute('aria-pressed', String(b.dataset.v === state.game));
   }
-  for (const box of [$('f-type'), $('f-lang')]) for (const b of box.children) b.setAttribute('aria-pressed', String(b.dataset.v === state[box.dataset.key]));
+  for (const box of [$('f-src'), $('f-type'), $('f-lang')]) for (const b of box.children) b.setAttribute('aria-pressed', String(b.dataset.v === state[box.dataset.key]));
   const kinds = state.type === 'sealed' ? ['booster box', 'etb', 'bundle', 'blister', 'tin', 'sobre', 'coleccion'] : [];
   $('f-kind-box').hidden = !kinds.length;
   $('f-kind').replaceChildren(new Option('Todos', ''), ...kinds.map(k => new Option(KIND[k], k)));

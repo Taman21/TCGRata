@@ -281,12 +281,7 @@ def sitemap(host, seen, hot=None, rot=0):
 
     def visit(u):
         try:
-            page = fetch(u)
-            items = list(jsonld_products(page, u))
-            if m := re.search(r'"user":\{[^{}]*?"username":"([^"]+)"', page):  # marketplaces (tcgmatch): each listing belongs to a seller
-                for it in items:
-                    it["seller"] = m[1]
-            return u, items
+            return u, list(jsonld_products(fetch(u), u))
         except Exception:
             return u, None  # failed: leave unrecorded so it's retried next run
 
@@ -378,8 +373,6 @@ def merge(data, host, items, now):
         p = data["products"].setdefault(key, {"store": host, "history": [], "first_seen": now})
         p.update(title=title, url=it["url"], image=it.get("image"), price=it["price"],
                  available=it["available"], last_seen=now)
-        if it.get("seller"):
-            p["seller"] = it["seller"]
         if it.get("cat"):  # not every platform has one; keep the last known
             p["cat"] = it["cat"]
         last = p["history"][-1] if p["history"] else None
@@ -520,12 +513,9 @@ def write_site(data):
     out.mkdir(parents=True, exist_ok=True)
     for f in out.glob("*.json"):
         f.unlink()
-    live = {h: s for h, s in data["stores"].items() if not s.get("disabled")}
-    sellers = {classify.store_of(p) for p in data["products"].values() if p.get("seller") and p["store"] in live}  # marketplace sellers show as stores of their own
-    hosts = sorted(set(live) | sellers)
-    live.update({h: live[h.split("/")[0]] for h in sellers})  # sellers inherit the marketplace's freshness
+    hosts = sorted(h for h, s in data["stores"].items() if not s.get("disabled"))
     shards = classify.build_groups(data["products"], {h: i for i, h in enumerate(hosts)})
-    counts = Counter(classify.store_of(p) for p in data["products"].values())  # s["count"] is only what the last run fetched (0 for an unchanged sitemap)
+    counts = Counter(p["store"] for p in data["products"].values())  # s["count"] is only what the last run fetched (0 for an unchanged sitemap)
     dump = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":"))
     games = {}
     for (game, bucket), groups in shards.items():
@@ -533,7 +523,7 @@ def write_site(data):
         for n, part in enumerate(parts):
             (out / f"{game}.{bucket}.{n}.json").write_text(dump(part), "utf-8")
         games.setdefault(game, {})[bucket] = {"groups": len(groups), "parts": len(parts)}
-    stores = [{"host": h, **{k: v for k, v in live[h].items() if k in ("platform", "last_crawl", "last_ok", "fails", "error")},
+    stores = [{"host": h, **{k: v for k, v in data["stores"][h].items() if k in ("platform", "last_crawl", "last_ok", "fails", "error")},
                "count": counts[h]} for h in hosts]
     index = {"generated": datetime.now().astimezone().isoformat(timespec="minutes"), "stores": stores, "games": games,
              "labels": classify.CFG["labels"], "search": classify.CFG["search"], "products": len(data["products"])}

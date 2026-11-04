@@ -18,6 +18,7 @@
     "magic":      {"keywords": "\\bmagic\\b|\\bmtg\\b|planeswalker|secret lair|\\bcommander\\b|\\bmythic\\b|borderless|extended art|\\btoken\\b|universes beyond|strixhaven|eternities|final fantasy|airbender|tarkir|innistrad|ravnica|eldraine|zendikar|modern horizons|lord of the rings|middle-earth|doctor who|assassin.?s creed|spider-man|duskmourn|bloomburrow|aetherdrift|kamigawa|dominaria|ikoria|theros|kaldheim|capenna|phyrexia|karlov", "tokens": ["magic", "gathering", "mtg"]},
     "pokemon":    {"keywords": "pokemon|pikachu|charizard|reverse holo|illustration rare|double rare", "tokens": ["pokemon"]}
   },
+  "marketplaces": ["tcgmatch.cl"],
   "labels": {
     "pokemon": "Pokémon", "magic": "Magic: The Gathering", "yugioh": "Yu-Gi-Oh!", "onepiece": "One Piece", "lorcana": "Lorcana",
     "dragonball": "Dragon Ball", "digimon": "Digimon", "mitos": "Mitos y Leyendas", "riftbound": "Riftbound", "gundam": "Gundam",
